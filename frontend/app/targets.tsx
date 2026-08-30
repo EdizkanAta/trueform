@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 
 import { useTheme } from "@/src/theme/ThemeContext";
+import { overlay } from "@/src/theme/theme";
 import { useAuth } from "@/src/context/AuthContext";
 import { api, fileUrl } from "@/src/api/client";
 import { GradientButton, Label, Screen, Card, MedicalDisclaimer } from "@/src/components/ui";
@@ -101,8 +102,8 @@ export default function TargetsScreen() {
                   <Image source={{ uri: fileUrl(r.path) }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                   {blur ? <BlurView intensity={60} tint="dark" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} /> : null}
                   <LinearGradient colors={["transparent", colors.scrim, colors.bg]} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 180 }} />
-                  <View style={{ position: "absolute", top: 12, left: 12, backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 }}>
-                    <Text style={{ color: "#fff", fontSize: font.size.xs, letterSpacing: 1 }}>ESTIMATE</Text>
+                  <View style={{ position: "absolute", top: 12, left: 12, backgroundColor: overlay.scrim, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill }}>
+                    <Text style={{ color: overlay.onImage, fontSize: font.size.xs, letterSpacing: 1 }}>ESTIMATE</Text>
                   </View>
                   <View style={{ position: "absolute", left: spacing.md, right: spacing.md, bottom: spacing.md }}>
                     <Text style={{ color: colors.textPrimary, fontSize: font.size.lg, fontWeight: "600" }}>{TITLES[label]}</Text>

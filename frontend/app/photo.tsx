@@ -10,6 +10,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/src/theme/ThemeContext";
+import { overlay } from "@/src/theme/theme";
 import { useAuth } from "@/src/context/AuthContext";
 import { uploadPhoto } from "@/src/api/client";
 import { GradientButton, OutlineButton, Label, Screen } from "@/src/components/ui";
@@ -22,7 +23,7 @@ const SILHOUETTE =
 
 export default function Photo() {
   const router = useRouter();
-  const { colors, spacing, font } = useTheme();
+  const { colors, spacing, font, radius } = useTheme();
   const insets = useSafeAreaInsets();
   const { refresh } = useAuth();
 
@@ -85,21 +86,21 @@ export default function Photo() {
 
   if (mode === "camera") {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <View style={{ flex: 1, backgroundColor: overlay.cameraBg }}>
         <CameraView ref={(r) => { cameraRef = r; }} style={{ flex: 1 }} facing="back">
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
             <Svg width="55%" height="70%" viewBox="0 0 100 160">
-              <Path d={SILHOUETTE} fill="none" stroke="rgba(45,212,191,0.7)" strokeWidth={1} strokeDasharray="3 3" />
+              <Path d={SILHOUETTE} fill="none" stroke={overlay.silhouette} strokeWidth={1} strokeDasharray="3 3" />
             </Svg>
           </View>
           <View style={{ position: "absolute", top: insets.top + 12, left: 0, right: 0, alignItems: "center" }}>
-            <Text style={{ color: "#fff", fontSize: font.size.sm, backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 }}>
+            <Text style={{ color: overlay.onImage, fontSize: font.size.sm, backgroundColor: overlay.scrim, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill }}>
               Stand back · full body in frame · neutral background
             </Text>
           </View>
           <View style={{ position: "absolute", bottom: insets.bottom + 30, left: 0, right: 0, alignItems: "center", flexDirection: "row", justifyContent: "space-around" }}>
-            <Feather name="x" size={28} color="#fff" onPress={() => setMode("intro")} />
-            <Feather name="circle" testID="camera-capture" size={72} color="#fff" onPress={capture} />
+            <Feather name="x" size={28} color={overlay.onImage} onPress={() => setMode("intro")} />
+            <Feather name="circle" testID="camera-capture" size={72} color={overlay.onImage} onPress={capture} />
             <View style={{ width: 28 }} />
           </View>
         </CameraView>

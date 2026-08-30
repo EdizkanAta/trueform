@@ -31,7 +31,7 @@ async function scheduleDaily(time: string, enabled: boolean) {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { colors, spacing, font } = useTheme();
+  const { colors, spacing, font, scheme, setScheme } = useTheme();
   const insets = useSafeAreaInsets();
   const { user, setUser, logout } = useAuth();
 
@@ -67,6 +67,19 @@ export default function ProfileScreen() {
         <Text style={{ color: colors.textTertiary, fontSize: font.size.sm, marginTop: 2 }}>
           {user.sex} · target: {user.chosen_target || "not chosen"}
         </Text>
+
+        {/* Appearance */}
+        <View style={{ marginTop: spacing.lg }}>
+          <Label>Appearance</Label>
+          <Card style={{ marginTop: spacing.sm }}>
+            <OptionGroup label="Theme" testIDPrefix="settings-theme" value={scheme}
+              onChange={(v: "dark" | "light") => setScheme(v)}
+              options={[{ value: "dark", label: "Dark" }, { value: "light", label: "Light" }]} />
+            <Text style={{ color: colors.textTertiary, fontSize: font.size.xs, marginTop: spacing.sm }}>
+              Dark is the default. Your choice is saved on this device.
+            </Text>
+          </Card>
+        </View>
 
         {/* Preferences */}
         <View style={{ marginTop: spacing.lg }}>

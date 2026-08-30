@@ -46,15 +46,14 @@ clinical, data-forward "lab instrument" design. Provider-agnostic AI behind one 
 - Tests: 16 unit (TargetEngine + coach_filter) + 30 e2e backend — all passing.
 
 ## Corrective pass (post-MVP review)
-- [DONE 2026-06] Item 1 (theme) partial: created `src/theme/theme.ts` as the SINGLE source of
-  truth (every hex/rgba declared once). `tokens.ts` now maps/re-exports it with zero literals.
-  `ThemeProvider` forced to **dark by default** (light = later Settings opt-in). **Today + Plan**
-  screens refactored to consume tokens only — grep confirms zero hex/rgba + zero grid spacing/radius.
-  Verified by testing_agent (iteration_2.json, 4/4 pass). metro.config.js untouched (NativeWind not
-  used — StyleSheet token system per user approval of Option 1).
-- [TODO] Item 1 remainder: roll token-only refactor across the other screens (welcome, auth,
-  onboarding, photo, generating, targets, coach, progress, profile) + shared components; add the
-  light-mode Settings toggle.
+- [DONE 2026-06] Item 1 (theme) COMPLETE: `src/theme/theme.ts` is the single source of truth
+  (every hex/rgba declared once) incl. a THEME-INDEPENDENT `overlay` group (scrim, onImage,
+  cameraBg, silhouette derived from accent teal) + radius.pill. `tokens.ts` maps it with zero
+  literals. **Grep across all src/ + app/ (excl. theme.ts) = ZERO hardcoded hex/rgba.** App launches
+  **dark by default**; **light mode is a persisted Settings toggle** (Profile → Appearance,
+  AsyncStorage key tf_theme). Verified by testing_agent iteration_2 (Today/Plan) + iteration_3
+  (toggle live-switch, persistence across reload, targets/photo overlay theme-independent) — all green.
+  metro.config.js untouched (StyleSheet token system, Option 1).
 - [TODO] Item 2 render realism: proportional facial soft-tissue change + magnitude & identity QA
   gates + calibration test (−5/−10/−15%). Do NOT touch TargetEngine math.
 - [TODO] Item 3: show target weight + est. body-fat% + "what it takes" on Targets AND Progress.

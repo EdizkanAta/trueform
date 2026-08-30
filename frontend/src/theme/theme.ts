@@ -4,7 +4,7 @@
  * Every hex/rgba literal in the app lives here exactly once. Framework-agnostic
  * so it feeds the StyleSheet `ThemeProvider` (via tokens.ts) — no value is ever
  * copied elsewhere. Dark is the mandatory launch default; `light` is derived
- * from the same palette and is a secondary opt-in (Settings), wired later.
+ * from the same palette and is a secondary opt-in (Settings).
  */
 
 // ---- Base color constants (each literal declared once) ---------------------
@@ -26,7 +26,7 @@ const warning = "#FBBF24";
 const alert = "#F87171";
 
 const scrimDark = "rgba(14,15,18,0.72)";
-const overlay = "rgba(0,0,0,0.45)";
+const pureBlack = "#000000";
 const white = "#FFFFFF";
 
 // light-mode neutrals (derived surfaces/text)
@@ -39,36 +39,38 @@ const inkMidLight = "#6B7280";
 const inkLowLight = "#9CA3AF";
 const scrimLight = "rgba(17,24,39,0.55)";
 
+// derive an rgba() string from an existing hex token (no new color literals)
+const withAlpha = (hex: string, a: number) => {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+};
+
 // ---- Dark palette (default) ------------------------------------------------
 export const palette = {
-  // surfaces
-  bg: nearBlack, // near-black app background (not pure black)
-  surface: surfaceDark, // cards / sheets
-  surfaceElevated: surfaceDarkElevated, // raised fills (skeletons, insets)
-  hairline: hairlineDark, // 1px borders / dividers
-  hairlineStrong: hairlineDarkStrong, // stronger control borders
+  bg: nearBlack,
+  surface: surfaceDark,
+  surfaceElevated: surfaceDarkElevated,
+  hairline: hairlineDark,
+  hairlineStrong: hairlineDarkStrong,
 
-  // text
   textPrimary: inkHigh,
   textSecondary: inkMid,
   textTertiary: inkLow,
 
-  // single restrained accent gradient — DATA + charts only, one CTA max/screen
   accentFrom: teal,
   accentMid: blue,
   accentTo: violet,
-  accentGradient: [teal, blue, violet] as const, // teal → blue → violet
-  onAccent: nearBlack, // text/icon on an accent fill
+  accentGradient: [teal, blue, violet] as const,
+  onAccent: nearBlack, // dark text/icon on the bright accent fill (AA on teal)
 
-  // semantic — used sparingly, never to shame
   success,
   warning,
   alert,
 
-  // image treatments
   scrim: scrimDark, // gradient scrim on full-bleed photo cards
-  overlay, // pill/label chips over imagery
-  onImage: white, // text/icon over imagery
 } as const;
 
 // ---- Light palette (derived; secondary opt-in) -----------------------------
@@ -84,6 +86,15 @@ const lightColors = {
   textTertiary: inkLowLight,
   onAccent: white,
   scrim: scrimLight,
+} as const;
+
+// ---- Fixed overlays — THEME-INDEPENDENT (do NOT branch dark/light) ---------
+// Colors that always sit on top of photos / camera / dark imagery.
+export const overlay = {
+  scrim: "rgba(0, 0, 0, 0.5)", // label/estimate pills + camera tip pill
+  onImage: white, // text/icons over photos
+  cameraBg: pureBlack, // camera viewport background
+  silhouette: withAlpha(teal, 0.7), // capture-guide outline, derived from accent teal
 } as const;
 
 // ---- Radius (spec: 16 default) --------------------------------------------

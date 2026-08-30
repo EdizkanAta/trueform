@@ -6,6 +6,7 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Feather } from "@expo/vector-icons";
 
 import { useTheme } from "@/src/theme/ThemeContext";
+import { overlay } from "@/src/theme/theme";
 import { api } from "@/src/api/client";
 import { Label, Screen } from "@/src/components/ui";
 
@@ -69,7 +70,7 @@ export default function CoachScreen() {
                 borderWidth: m.role === "user" ? 0 : 1, borderColor: colors.border,
                 borderRadius: radius.md, padding: spacing.md,
               }}>
-                <Text style={{ color: m.role === "user" ? "#fff" : colors.textPrimary, fontSize: font.size.base, lineHeight: 21 }}>{m.content}</Text>
+                <Text style={{ color: m.role === "user" ? overlay.onImage : colors.textPrimary, fontSize: font.size.base, lineHeight: 21 }}>{m.content}</Text>
               </View>
               {m.filtered && m.filtered.length ? (
                 <Text style={{ color: colors.textTertiary, fontSize: 10, marginTop: 3 }}>Safety filter applied</Text>

@@ -6,6 +6,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 
 import { useTheme } from "@/src/theme/ThemeContext";
+import { overlay } from "@/src/theme/theme";
 import { api } from "@/src/api/client";
 import { Card, Chip, Label, ListRow, Screen, Skeleton, StatReadout, MedicalDisclaimer } from "@/src/components/ui";
 import { FullBleedCard } from "@/src/components/FullBleedCard";
@@ -115,8 +116,8 @@ export default function PlanScreen() {
               <FullBleedCard testID={`plan-meal-${m.slug}`} imageUri={MEAL_IMG} title={m.name} subtitle={`${m.meal_type} · ${m.kcal} kcal`} height={130} onPress={() => setExpanded(expanded === m.slug ? null : m.slug)}>
                 <View style={{ flexDirection: "row", gap: 6, marginBottom: 6 }}>
                   {(m.tags || []).slice(0, 3).map((t: string) => (
-                    <View key={t} style={{ backgroundColor: colors.overlay, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill }}>
-                      <Text style={{ color: colors.onImage, fontSize: 10 }}>{t}</Text>
+                    <View key={t} style={{ backgroundColor: overlay.scrim, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill }}>
+                      <Text style={{ color: overlay.onImage, fontSize: 10 }}>{t}</Text>
                     </View>
                   ))}
                 </View>

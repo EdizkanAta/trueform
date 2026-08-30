@@ -24,8 +24,6 @@ const mapColors = (c: ThemeColors) => ({
   warning: c.warning,
   alert: c.alert,
   scrim: c.scrim,
-  overlay: c.overlay,
-  onImage: c.onImage,
 });
 
 export const darkColors = mapColors(darkTheme.colors);

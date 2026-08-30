@@ -9,6 +9,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { ThemeProvider } from "@/src/theme/ThemeContext";
+import { palette } from "@/src/theme/theme";
 import { AuthProvider } from "@/src/context/AuthContext";
 
 // Disable logbox errors etc so that users can see the app
@@ -41,7 +42,7 @@ export default function RootLayout() {
           <ThemeProvider>
             <AuthProvider>
               <StatusBar style="light" />
-              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0E0F12" } }} />
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.bg } }} />
             </AuthProvider>
           </ThemeProvider>
         </KeyboardProvider>

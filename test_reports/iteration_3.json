@@ -1,0 +1,38 @@
+{
+  "summary": "Frontend-only verification of the theme-toggle + overlay-tokenization corrective fix. All 5 in-scope acceptance items PASS. (1) DARK-BY-DEFAULT on a fresh session (localStorage/IndexedDB cleared): welcome, /(auth)/login and post-login Today all render dark — login screen visually near-black #0E0F12, screenshots confirm. (2) LIVE TOGGLE WORKS: Profile tab shows an 'Appearance → Theme' Card with the two OptionGroup pills, testIDs settings-theme-dark and settings-theme-light both present. Tapping 'Light' immediately flips the whole Profile UI to light mode — outer background becomes light ~#F9FAFB, both nested Cards (Theme, Preferences) render pure white ~#FFFFFF, previously white 'PROFILE / APPEARANCE / PREFERENCES / THEME' labels turn dark grey, teal pill 'Metric (kg/cm)' keeps its accent color, Daily-reminder time chips flip from dark-teal-on-black to teal-on-white — no reload required. Tapping 'Dark' immediately switches back to near-black. (3) PERSISTENCE ACROSS RELOAD: with theme set to Light, a full page reload brings the app back in LIGHT mode (AsyncStorage-on-web = IndexedDB key `tf_theme`). Then switching back to Dark + reload comes back Dark (screenshot 8 shows Dark pill active on Profile immediately after reload). Both directions persist correctly. (4) /targets OVERLAY IS THEME-INDEPENDENT: navigated to /targets in both modes; the three render cards (Conservative 80.6 kg / 23%, Expected 78.8 kg / 22.4%, Stretch 75.7 kg / 21.2%) each show weight, body-fat % and a 'what it takes' line ('~X lb/week ... over 20 weeks'). The 'ESTIMATE' pill on every card measured programmatically as parentBg=rgba(0,0,0,0.5) with textColor=rgb(255,255,255) in BOTH light and dark modes — the overlay.scrim + overlay.onImage tokens are correctly NOT branching on theme. (5) /photo INTRO RENDERS in both modes without crashing — 'BASE PHOTO · A guided full-body shot' copy renders, silhouette outline renders (uses overlay.silhouette = teal @ 0.7 derived from accent, theme-independent), and both 'Take a photo' + 'Upload from gallery' CTAs are present. Web browser does not open the live camera viewport as expected (permission-gated); per review-request note this is not a failure. No red screens, no first-party console errors. Only warnings observed: benign expo-notifications 'push token changes not supported on web' (explicitly out of scope) and the react-native-web `pointerEvents` deprecation (third-party).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/tmp/1_login_dark.png — dark login on fresh session",
+    "/tmp/3_profile_dark.png — Profile appearance card, Dark active",
+    "/tmp/4_profile_light.png — same Profile, Light active, live-switched",
+    "/tmp/5_reloaded_light.png — after reload, still Light (persistence)",
+    "/tmp/6_targets_light.png — /targets in Light, ESTIMATE pill still dark w/ white text",
+    "/tmp/8_reloaded_dark.png — after 2nd reload, back to Dark (persistence)",
+    "/tmp/9_targets_dark.png — /targets in Dark, ESTIMATE pill identical",
+    "/tmp/10_photo_dark.png + /tmp/11_photo_light.png — /photo renders in both modes"
+  ],
+  "action_items": [
+    "None for this scope — theme toggle, dark-default, persistence via tf_theme, and theme-independent overlays are all verified working end-to-end."
+  ],
+  "critical_code_review_comments": [
+    "theme.ts correctly exposes both `palette` (dark) and a derived `lightColors` object, plus a separate `overlay` object whose members (scrim, onImage, cameraBg, silhouette) are NOT branched by scheme — this matches the spec that overlays on top of imagery stay dark regardless of theme.",
+    "ThemeContext.tsx correctly reads/writes `tf_theme` via storage util (AsyncStorage on native, IndexedDB on web); default state is 'dark' before the async read resolves, so first-launch paint is always dark even if storage races.",
+    "tokens.ts adds `lightColors` alongside `darkColors` via the same `mapColors` function — no new hex literals introduced, single-source rule preserved.",
+    "profile.tsx wires `scheme` + `setScheme` from useTheme() into an <OptionGroup testIDPrefix='settings-theme' /> — this correctly produces `settings-theme-dark` and `settings-theme-light` testIDs (confirmed in DOM).",
+    "Confirmed no deprecated Expo modules re-introduced in this iteration; expo-av is still absent, camera flow uses expo-camera equivalent path in /photo.",
+    "Minor (non-blocking, carried from iteration_2): raw numeric literals `gap:12/6` in plan.tsx and `width:44,height:40` in (tabs)/index.tsx are still outside spacing tokens. Not a correctness issue and out of this iteration's scope."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only scope per review request)", "frontend": "100% (5/5 in-scope items pass)"},
+  "seed_data_creation": "None — reused the pre-provisioned account e2e1788128321@trueform.app / Test1234! (already has plan+targets so /targets renders three real cards).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Dark-default + Light/Dark toggle + AsyncStorage persistence (key `tf_theme`) + theme-independent overlays (rgba(0,0,0,0.5) scrim, white on-image, pure black camera bg, teal@0.7 silhouette) are all shipped correctly and green as of iteration_3. The Profile testIDs to reuse are settings-theme-dark / settings-theme-light. On web, 'app restart' equivalent is `page.reload()`; you'll auto-return to /(auth)/login if AsyncStorage cleared the JWT but the theme choice survives that (it's a separate key from auth). Remaining un-scoped follow-ups for later iterations, unchanged from iteration_2: (a) plan.tsx environment override (Gym/Home/Home-no-eq) does not swap the workout payload visually — likely backend re-fetch/state wiring, (b) exercise rows show placeholder Feather activity icons because ex.media.demo_url is null in the seeded plan payload.",
+  "rca_of_issue": "N/A — no bugs found; all corrective fixes verified in-place."
+}
