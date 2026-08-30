@@ -54,8 +54,11 @@ clinical, data-forward "lab instrument" design. Provider-agnostic AI behind one 
   AsyncStorage key tf_theme). Verified by testing_agent iteration_2 (Today/Plan) + iteration_3
   (toggle live-switch, persistence across reload, targets/photo overlay theme-independent) — all green.
   metro.config.js untouched (StyleSheet token system, Option 1).
-- [TODO] Item 2 render realism: proportional facial soft-tissue change + magnitude & identity QA
-  gates + calibration test (−5/−10/−15%). Do NOT touch TargetEngine math.
+- [PARTIAL 2026-06] Item 2 render realism: prompt logic now scales FACIAL soft-tissue change to the
+  computed body-fat delta (subtle ~−5%, obvious ~−10%+) with strict identity lock (bone structure,
+  eyes, nose, ears, hairline, hair/beard, skin tone, expression). Only `build_render_prompt` in
+  ai_provider.py changed; TargetEngine math untouched. STILL TODO: magnitude + identity QA gates and
+  the −5/−10/−15% calibration test.
 - [TODO] Item 3: show target weight + est. body-fat% + "what it takes" on Targets AND Progress.
 - [TODO] Item 4: env toggle binds day's environmentSchedule; swap every exercise (no barbell under home).
 - [TODO] Item 5: MediaProvider real GIF/video thumbnails per exercise (wger, CC-BY-SA).

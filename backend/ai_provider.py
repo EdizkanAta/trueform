@@ -138,18 +138,52 @@ def get_provider(cost_logger: Optional[CostLogger] = None) -> AIProvider:
 # --- Prompt builders --------------------------------------------------------
 
 def build_render_prompt(stats: dict, label: str) -> str:
-    """Image-to-image prompt: change ONLY body composition, preserve identity."""
-    if label == "conservative":
-        change = "a modest, realistic reduction in body fat"
-    elif label == "stretch":
-        change = "a noticeable but still realistic improvement in body composition (leaner, more muscle tone)"
+    """Image-to-image prompt: change body composition AND facial soft tissue
+    PROPORTIONALLY to the computed body-fat change, while strictly preserving
+    identity (bone structure, eyes, nose, ears, hairline, hair/beard, skin tone,
+    expression). Magnitude scales with |current_bf - target_bf|: subtle at ~5%,
+    obvious at ~10%+."""
+    current_bf = stats.get("current_body_fat_pct")
+    target_bf = stats.get("target_body_fat_pct")
+    try:
+        delta = float(current_bf) - float(target_bf)
+    except (TypeError, ValueError):
+        delta = 0.0
+    leaner = delta >= 0
+    mag = abs(delta)
+
+    if mag < 3:
+        body_change = "a subtle, realistic change in body composition"
+        face_change = ("a very subtle change to facial soft tissue — cheeks marginally slimmer, "
+                       "jawline only slightly more defined")
+    elif mag < 6:
+        body_change = "a modest, realistic reduction in body fat"
+        face_change = ("a subtle change to facial soft tissue — slightly slimmer cheeks, a "
+                       "marginally more defined jawline, and a small reduction in under-chin fullness")
+    elif mag < 10:
+        body_change = "a clear, realistic reduction in body fat"
+        face_change = ("a noticeable change to facial soft tissue — visibly slimmer cheeks, a more "
+                       "defined jawline, and reduced under-chin (submental) fullness")
     else:
-        change = "a realistic, healthy improvement in body composition"
+        body_change = "a substantial but still realistic reduction in body fat"
+        face_change = ("an obvious change to facial soft tissue — clearly slimmer cheeks, a sharply "
+                       "defined jawline, and minimal under-chin (submental) fullness")
+
+    if not leaner:
+        # muscle gain / recomp: the face fills out slightly rather than slimming
+        body_change = "a realistic increase in muscle with a slightly fuller, healthier face"
+        face_change = ("a subtle change to facial soft tissue — a slightly fuller, firmer face "
+                       "appropriate to gaining lean mass")
+
     return (
-        f"Edit this full-body photo to show the SAME person after {change}, "
-        f"targeting about {stats.get('target_body_fat_pct')}% body fat. "
-        "STRICT RULES: keep the exact same face, identity, skin tone, hair, pose, "
-        "camera angle, lighting, background, and clothing style and fit. Change ONLY "
-        "the body composition to look natural and attainable. Photorealistic, "
-        "non-sexualized, respectful, true-to-life. Do not idealize or exaggerate."
+        f"Edit this full-body photo of the SAME person to show {body_change}, moving from about "
+        f"{current_bf}% to about {target_bf}% body fat. The FACE must change proportionally with the "
+        f"body-fat change: {face_change}. "
+        "STRICT — DO NOT change any of the following: the underlying bone structure or skull/face "
+        "shape and proportions, the eyes, nose, ears, hairline, hair style, beard or facial-hair "
+        "style, skin tone, or facial expression. Also keep the exact same identity, pose, camera "
+        "angle, lighting, background, and clothing style and fit. Change ONLY body composition and "
+        "the soft-tissue fullness of the face that naturally follows it. Photorealistic, natural, "
+        "attainable, non-sexualized, true-to-life — do not idealize, beautify, or exaggerate beyond "
+        "the stated body-fat change."
     )
