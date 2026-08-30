@@ -101,7 +101,7 @@ export default function TodayScreen() {
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm }}>
                 <Label>Today's workout · {dp?.focus}</Label>
                 {dp?.type === "workout" ? (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
                     <Text style={{ color: colors.textSecondary, fontSize: font.size.xs }}>Done</Text>
                     <CheckBox testID="today-workout-check" checked={workout} onToggle={toggleWorkout} />
                   </View>
@@ -147,7 +147,7 @@ export default function TodayScreen() {
 
         {recovery ? (
           <Card testID="today-recovery" style={{ marginTop: spacing.md, borderColor: colors.accentTeal }}>
-            <View style={{ flexDirection: "row", gap: 8, alignItems: "center", marginBottom: 6 }}>
+            <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "center", marginBottom: spacing.xs }}>
               <Feather name="shield" size={16} color={colors.accentTeal} />
               <Label>Recovery protocol</Label>
             </View>
@@ -175,17 +175,17 @@ export default function TodayScreen() {
 }
 
 function ScaleRow({ label, value, onChange, testID }: { label: string; value: number | null; onChange: (v: number) => void; testID?: string }) {
-  const { colors, font } = useTheme();
+  const { colors, font, spacing, radius } = useTheme();
   return (
     <View testID={testID}>
-      <Text style={{ color: colors.textSecondary, fontSize: font.size.sm, marginBottom: 6 }}>{label} (1–5)</Text>
-      <View style={{ flexDirection: "row", gap: 8 }}>
+      <Text style={{ color: colors.textSecondary, fontSize: font.size.sm, marginBottom: spacing.xs }}>{label} (1–5)</Text>
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
         {[1, 2, 3, 4, 5].map((n) => {
           const on = value === n;
           return (
             <Text key={n} testID={`${testID}-${n}`} onPress={() => onChange(n)}
               style={{
-                width: 44, height: 40, textAlign: "center", lineHeight: 40, borderRadius: 8,
+                width: 44, height: 40, textAlign: "center", lineHeight: 40, borderRadius: radius.sm,
                 borderWidth: 1, borderColor: on ? colors.accentTeal : colors.border,
                 backgroundColor: on ? colors.accentTeal : "transparent",
                 color: on ? colors.onAccent : colors.textSecondary, fontWeight: "600",

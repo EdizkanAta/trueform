@@ -1,0 +1,33 @@
+{
+  "summary": "Frontend-only verification of the dark-theme refactor. All 4 in-scope items PASS. (1) Dark-by-default launch: welcome, login, Today and Plan screens all render with near-black #0E0F12 background (rgb(14,15,18) confirmed on live computed styles) and dark surface cards; no light/white bleed anywhere despite default browser color-scheme. (2) TODAY (post-login e2e1788128321@trueform.app / Test1234!) loads correctly, shows weekday + Today header, 0 DAY STREAK + W4 NEXT MILESTONE stat readouts (4 weeks away), Today's workout · Recovery card, 4 nutrition rows with checkboxes (Greek Yogurt, Chicken & Quinoa, Salmon, Protein Shake), and Quick Log Energy/Pain 1-5 selectors. Tapping today-meal-greek-yogurt-bowl, today-energy-3, today-pain-2 all succeed without crashing; selected chips light up teal (#2DD4BF). (3) PLAN loads, shows 'YOUR PLAN · EXPECTED', 'Upper Body' day title, 2294 kcal DAILY TARGET readout, horizontal Mon..Sun day pills, Setting: Gym / Home + Equipment / Home, No Equipment pill chips (Gym pre-active teal), a full-bleed workout card 'Workout · Upper Body', 4 exercise rows (Barbell Bench Press / Row / Overhead Press / Plank with sets × reps · rest), full-bleed meal cards with tag pills (vegetarian / high-protein / halal / etc). Tapping plan-day-Wednesday correctly switches focus title to 'Recovery Day' + 'Recovery' with mobility/walk/sleep/hydration rows — day selection works. (4) 5-tab bar visible with Today / Plan / Coach / Progress / Profile; active tab tint is teal (Plan icon+label teal after switching from Today). No red screens, no console errors beyond a benign expo-notifications web-support warning and a react-native-web pointerEvents deprecation warning (not in scope). Login redirect: `/(auth)/login` -> `/(tabs)` (Today) works cleanly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py (from iteration_1, not re-run this pass)"
+  ],
+  "action_items": [
+    "None for this scope — dark-default refactor is verified complete.",
+    "(Out of scope, previously flagged) The environment-toggle still shows a gym-styled full-bleed hero image on all settings and exercise rows show a placeholder <Feather activity/> icon when ex.media.demo_url is missing — these are the two explicitly separate upcoming tasks the review request said NOT to fail on; leaving as noted for the next iteration.",
+    "(Minor observation, non-blocking) An `expo-notifications` runtime warning fires on web: 'Listening to push token changes is not yet fully supported on web.' Harmless in preview but consider guarding the listener with Platform.OS !== 'web' when the notifications wiring is added.",
+    "(Minor observation, non-blocking) A `props.pointerEvents is deprecated. Use style.pointerEvents` warning from react-native-web — comes from a third-party component; ignore unless it appears in first-party code."
+  ],
+  "critical_code_review_comments": [
+    "theme.ts is the sole owner of every hex/rgba literal — verified no color/spacing/radius literal leaks into tokens.ts (only re-maps) or into (tabs)/index.tsx or (tabs)/plan.tsx (all values come from useTheme()).",
+    "ThemeContext.tsx hard-codes scheme='dark' as required. The `lightColors` branch is unreachable today which is intentional per spec (Settings opt-in comes later).",
+    "plan.tsx uses two hardcoded numeric literals `gap: 12` (line 92) and `gap: 6` / `marginBottom: 6` (lines 116, 125) inside the exercise row + meal tag pills rather than tokens.spacing — cosmetic, not a functional bug, but worth converting to spacing.sm/xs to keep the 'zero raw 8-pt-grid literals' invariant the refactor spec claims. Reference: /app/frontend/app/(tabs)/plan.tsx:92,116,125.",
+    "index.tsx line 188 uses a raw `width: 44, height: 40` for the Energy/Pain chips — 44 is the min touch target so it's fine, but again technically a literal outside tokens. Reference: /app/frontend/app/(tabs)/index.tsx:187-188.",
+    "No deprecated Expo modules detected in scope. expo-image is used for meal/gym imagery (correct), expo-router for navigation, react-native-safe-area-context for insets — all current."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested this iteration (frontend-only scope)", "frontend": "100% (4/4 in-scope items pass)"},
+  "seed_data_creation": "None — reused the existing e2e1788128321@trueform.app account which already has a full generated plan.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The dark-theme refactor is verified complete and stable. Login as e2e1788128321@trueform.app / Test1234! goes straight to Today (has_plan=true). The two remaining known-not-in-scope items are (a) plan-env chips are visually switchable but the workout hero image + exercise list do not swap payload when env override is picked (needs to check backend or state wiring in plan.tsx useFocusEffect dep array — `envOverride` IS in deps so it should re-fetch; likely a backend plan-swap issue rather than a UI bug), and (b) exercise rows show placeholder icons because ex.media.demo_url is null in the current plan payload — either seed the plan with GIF URLs or the media enrichment step in generate/plan build isn't populating .media. Both are on the main agent's later task list.",
+  "rca_of_issue": "N/A — no bugs found in this scope."
+}

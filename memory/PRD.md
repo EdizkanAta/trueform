@@ -45,6 +45,23 @@ clinical, data-forward "lab instrument" design. Provider-agnostic AI behind one 
 - Settings: units, daily reminder (local notif), export (Share), logout, delete account. [done]
 - Tests: 16 unit (TargetEngine + coach_filter) + 30 e2e backend — all passing.
 
+## Corrective pass (post-MVP review)
+- [DONE 2026-06] Item 1 (theme) partial: created `src/theme/theme.ts` as the SINGLE source of
+  truth (every hex/rgba declared once). `tokens.ts` now maps/re-exports it with zero literals.
+  `ThemeProvider` forced to **dark by default** (light = later Settings opt-in). **Today + Plan**
+  screens refactored to consume tokens only — grep confirms zero hex/rgba + zero grid spacing/radius.
+  Verified by testing_agent (iteration_2.json, 4/4 pass). metro.config.js untouched (NativeWind not
+  used — StyleSheet token system per user approval of Option 1).
+- [TODO] Item 1 remainder: roll token-only refactor across the other screens (welcome, auth,
+  onboarding, photo, generating, targets, coach, progress, profile) + shared components; add the
+  light-mode Settings toggle.
+- [TODO] Item 2 render realism: proportional facial soft-tissue change + magnitude & identity QA
+  gates + calibration test (−5/−10/−15%). Do NOT touch TargetEngine math.
+- [TODO] Item 3: show target weight + est. body-fat% + "what it takes" on Targets AND Progress.
+- [TODO] Item 4: env toggle binds day's environmentSchedule; swap every exercise (no barbell under home).
+- [TODO] Item 5: MediaProvider real GIF/video thumbnails per exercise (wger, CC-BY-SA).
+- [TODO] Item 6: one-tap blur on all body photos, blurred by default except Progress comparison.
+
 ## Backlog / remaining (P-levels)
 - P0 (Phase 2 gate): none blocking MVP.
 - P1: SSE streaming coach; text-model-authored render prompts; DOB native picker; auth rate limiting.

@@ -18,7 +18,7 @@ const DAY_ABBR: Record<string, string> = { Monday: "Mon", Tuesday: "Tue", Wednes
 const ENVS = ["gym", "home_equipment", "home_no_equipment"];
 
 export default function PlanScreen() {
-  const { colors, spacing, font } = useTheme();
+  const { colors, spacing, font, radius } = useTheme();
   const insets = useSafeAreaInsets();
   const [plan, setPlan] = useState<any>(null);
   const [dayIdx, setDayIdx] = useState(0);
@@ -91,9 +91,9 @@ export default function PlanScreen() {
             day.workout.map((ex: any, i: number) => (
               <View key={ex.slug + i} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: spacing.sm, borderBottomWidth: i < day.workout.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
                 {ex.media?.demo_url ? (
-                  <Image source={{ uri: ex.media.demo_url }} style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
+                  <Image source={{ uri: ex.media.demo_url }} style={{ width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
                 ) : (
-                  <View style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" }}>
+                  <View style={{ width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" }}>
                     <Feather name="activity" size={20} color={colors.textTertiary} />
                   </View>
                 )}
@@ -115,8 +115,8 @@ export default function PlanScreen() {
               <FullBleedCard testID={`plan-meal-${m.slug}`} imageUri={MEAL_IMG} title={m.name} subtitle={`${m.meal_type} · ${m.kcal} kcal`} height={130} onPress={() => setExpanded(expanded === m.slug ? null : m.slug)}>
                 <View style={{ flexDirection: "row", gap: 6, marginBottom: 6 }}>
                   {(m.tags || []).slice(0, 3).map((t: string) => (
-                    <View key={t} style={{ backgroundColor: "rgba(0,0,0,0.45)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
-                      <Text style={{ color: "#fff", fontSize: 10 }}>{t}</Text>
+                    <View key={t} style={{ backgroundColor: colors.overlay, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill }}>
+                      <Text style={{ color: colors.onImage, fontSize: 10 }}>{t}</Text>
                     </View>
                   ))}
                 </View>
