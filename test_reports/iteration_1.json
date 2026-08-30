@@ -1,0 +1,50 @@
+{
+  "summary": "Backend regression suite (30 tests, pytest) executed against public EXPO_PUBLIC_BACKEND_URL — 27 pass, 3 fail. All 3 failures share a single root cause: Gemini image generation returns no image, so future_self_sets never gets created (test_generate_full_flow errors out, then test_targets_endpoint 404s and test_progress.chosen_render is None cascade). Auth (18+ enforcement, consent gating, duplicate email, wrong pw, /auth/me), onboarding, pregnancy + eating-disorder-history blocking on /generate (403 with detail.blocked=true + resources), photo upload + ownership check on /api/files (401 without token, 403 for another user, 200 for owner), target/choose + plan build + environment=home_no_equipment bodyweight swap, /logs recovery trigger (pain>=3 or energy<=2), /today with streak + next_milestone, coach surgical-advice filter (liposuction/tummy tuck stripped, physician redirect included), /account/export and DELETE /account (subsequent /auth/me returns 401) — all pass. Frontend Expo web preview loads correctly on mobile viewport, welcome->signup navigation works, signup form renders with all testIDs and correctly disables submit until age consent is ticked. NO deprecated Expo packages detected in the audited files (server.py refers to expo-notifications only, which is current).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/generate (background job -> ai_provider.render_future_self)",
+        "issue": "Gemini image generation returns empty image array, raising 'Image model returned no image'. Configured AI_IMAGE_MODEL=gemini-3.1-flash-image-preview in backend/.env; the canonical Nano Banana model name is gemini-2.5-flash-image-preview. This cascades: /api/targets returns 404 (no future_self_set), /api/progress returns chosen_render=null, and the entire target-selection UX is unreachable. Verified in backend logs: 'AI cost: render_future_self gemini-3.1-flash-image-preview {images: 0}' followed by 'RuntimeError: Image model returned no image'. Reference: /app/backend/.env:16 and /app/backend/ai_provider.py:114-126.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Signup -> Onboarding -> Photo -> Generating -> Targets",
+        "issue": "The generating screen and targets screen cannot be validated end-to-end until the backend image-generation model is fixed. Once fixed, /generating.tsx should transition to /targets.tsx.",
+        "affected_testIDs": []
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "FIX (CRITICAL): change AI_IMAGE_MODEL in /app/backend/.env from gemini-3.1-flash-image-preview to gemini-2.5-flash-image-preview (Nano Banana), then `sudo supervisorctl restart backend` and re-run: pytest /app/backend/tests/backend_test.py::TestGenerate -v -n 0. This should also make test_targets_endpoint and test_progress pass without further changes.",
+    "Note for pytest: this file must be run with `-n 0` because /app/backend/pytest.ini forces xdist across 2 workers with --dist loadscope, which splits fixture state across shared-state test classes. The suite is intentionally sequential and shares one signed-up user across classes via a module-scoped fixture.",
+    "Consider adding a retry (1 attempt) around ai.render_future_self in server.py::_run_generation for transient image-model empty responses so a single flaky call doesn't error the whole job."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 667 lines — approaching the 700-line split threshold. Consider extracting auth/, onboarding/, photo/, generate/, coach/, plan/, account/ into separate routers.",
+    "generate flow does 3 sequential Gemini calls (~90s). Consider asyncio.gather to parallelise the 3 label renders and cut wall-clock time to ~30s.",
+    "coach_message returns 502 on Claude failure — good — but the 3 label render loop in _run_generation has no per-render retry; a single empty response fails the whole job.",
+    "public_user function is used consistently, _clean(doc) strips ObjectId — no _id leaks observed in any endpoint response.",
+    "Ownership check on /api/files uses substring match `f'/uploads/{user_id}/' not in f'/{path}'` — safe because uploads path template always includes user_id segment, verified via test_file_other_user_forbidden."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (new — comprehensive regression suite)"
+  ],
+  "success_rate": {"backend": "90% (27/30)", "frontend": "loads correctly; full end-to-end blocked by backend image-gen issue"},
+  "seed_data_creation": "Each test class signs up its own TEST_ prefixed user via /api/auth/signup so cleanup is trivial and no seed writes are needed. Delete-account test creates its own throwaway user so it doesn't affect other tests.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run `pytest /app/backend/tests/backend_test.py -v -n 0 --junitxml=/app/test_reports/pytest/pytest_results.xml` (the -n 0 override is REQUIRED — pytest.ini sets -n 2 --dist loadscope which splits the shared user fixture across workers). After main agent fixes AI_IMAGE_MODEL, the 3 failing tests (TestGenerate::test_generate_full_flow, TestTargetsAndPlan::test_targets_endpoint, TestProgressAndAccount::test_progress) should pass. Then proceed with UI end-to-end via /api/auth/signup -> onboarding -> photo -> generate -> targets -> tabs. Test creds file at /app/memory/test_credentials.md.",
+  "rca_of_issue": "ROOT CAUSE: AI_IMAGE_MODEL in /app/backend/.env is set to `gemini-3.1-flash-image-preview` which does not exist. Nano Banana / Gemini image-preview canonical model id is `gemini-2.5-flash-image-preview`. The LiteLLM call succeeds (200 from the provider) but returns zero images, which ai_provider.py:125 correctly converts into RuntimeError. REPRO: 1) signup + onboarding + photo upload; 2) POST /api/generate; 3) poll GET /api/generate/{id} — status becomes 'error' with message 'Image model returned no image' within ~5s. Backend log confirms: 'AI cost: render_future_self gemini-3.1-flash-image-preview {images: 0}'. MITIGATION: update AI_IMAGE_MODEL to gemini-2.5-flash-image-preview, restart backend."
+}

@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "TrueForm",
+    "slug": "frontend",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "frontend",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.emergent.attainablebody.ngfo6q",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take your full-body progress photos",
+        "NSPhotoLibraryUsageDescription": "Upload full-body photos for your renders"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0E0F12"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.emergent.attainablebody.ngfo6q",
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "NOTIFICATIONS"]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-image.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0E0F12"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Take your full-body progress photos"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Upload full-body photos for your renders"
+        }
+      ],
+      "expo-notifications"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -1,0 +1,241 @@
+{
+  "app_name": "TrueForm",
+  "personality": "7 Dark-First Utility (Clinical Lab Instrument Variant)",
+  "personality_one_liner": "A dark, data-forward, clinical lab instrument for realistic physique transformation.",
+  "color": {
+    "surface": "#0E0F12",
+    "onSurface": "#F2F3F5",
+    "surfaceSecondary": "#17181C",
+    "onSurfaceSecondary": "#9BA0A8",
+    "surfaceTertiary": "#26272C",
+    "onSurfaceTertiary": "#F2F3F5",
+    "surfaceInverse": "#F9FAFB",
+    "onSurfaceInverse": "#111827",
+    "brand": "#2DD4BF",
+    "brandPrimary": "#2DD4BF",
+    "onBrandPrimary": "#0E0F12",
+    "brandSecondary": "#3B82F6",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#8B5CF6",
+    "onBrandTertiary": "#FFFFFF",
+    "success": "#34D399",
+    "onSuccess": "#064E3B",
+    "warning": "#FBBF24",
+    "onWarning": "#78350F",
+    "error": "#F87171",
+    "onError": "#7F1D1D",
+    "info": "#3B82F6",
+    "onInfo": "#EFF6FF",
+    "border": "#26272C",
+    "borderStrong": "#3B4048",
+    "divider": "#26272C",
+    "light_mode_derivation": {
+      "surface": "#F9FAFB",
+      "onSurface": "#111827",
+      "surfaceSecondary": "#FFFFFF",
+      "onSurfaceSecondary": "#6B7280",
+      "surfaceTertiary": "#F3F4F6",
+      "onSurfaceTertiary": "#111827",
+      "surfaceInverse": "#0E0F12",
+      "onSurfaceInverse": "#F2F3F5",
+      "border": "#E5E7EB",
+      "borderStrong": "#D1D5DB",
+      "divider": "#E5E7EB"
+    }
+  },
+  "typography": {
+    "displayFontFamily": "Inter",
+    "textFontFamily": "Inter",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 32,
+      "4xl": 48
+    },
+    "guidelines": "Big, thin numerals (weight 300/400) for stats (weight, kcal, streak). Small uppercase letter-spaced labels (weight 500, size sm) for metadata to mimic an instrument readout. Body text regular weight, generous line height."
+  },
+  "spacing": {
+    "rule": "Strict 8-pt grid system. Generous padding around charts and data visualizations. Avoid cramping data points.",
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "2xl": 48,
+    "3xl": 64
+  },
+  "radius_tokens": {
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Feather",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use dark gradient scrims over full-bleed photo cards (transparent at top to >=70% surface/surfaceSecondary at bottom).",
+      "Use subtle blur on floating action or pinned filter chips over scrolling charts.",
+      "Blur the user's base photo when privacy toggle is active."
+    ],
+    "dont's": [
+      "Do not use heavy glassmorphism on data cards; clarity beats aesthetics.",
+      "No blur behind primary text/stats readout."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "haptics": {
+    "events": {
+      "checkbox_completion": "success",
+      "tab_press": "light",
+      "slider_drag_commit": "medium",
+      "comparison_divider_drag": "selection",
+      "target_selection": "medium"
+    }
+  },
+  "screens": [
+    {
+      "name": "Welcome / Consent",
+      "purpose": "Age gate and clear, warm consent collection.",
+      "states": {
+        "loading": "Skeleton text blocks.",
+        "empty": "N/A",
+        "error": "Standard alert toast with Retry."
+      },
+      "layout": "Minimalist center-aligned content. Big thin typography for title. Clear plain-language terms. Bottom sticky primary CTA."
+    },
+    {
+      "name": "Onboarding Wizard",
+      "purpose": "5-step wizard capturing vitals, activity, limitations, and timeline.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "Validation inline text in warning color."
+      },
+      "layout": "Top progress bar. Single column form. Big interactive sliders for timeline (8-52 weeks). Bottom sticky Continue button."
+    },
+    {
+      "name": "Guided Photo Capture",
+      "purpose": "Camera view with silhouette overlay to capture base physique.",
+      "states": {
+        "loading": "Camera initialization skeleton.",
+        "empty": "N/A",
+        "error": "Camera permissions error screen."
+      },
+      "layout": "Full screen camera. Central silhouette outline. Large circular capture button at bottom. Safe area clearance."
+    },
+    {
+      "name": "Generating Status",
+      "purpose": "Background job polling screen while AI processes targets.",
+      "states": {
+        "loading": "Animated skeleton loaders representing the UI being built (No spinners!).",
+        "empty": "N/A",
+        "error": "Error message with Retry."
+      },
+      "layout": "Data-forward loading screen. 'Building target matrix...' text. Skeleton charts drawing in."
+    },
+    {
+      "name": "Your Realistic Targets",
+      "purpose": "Displays 3 future-self renders (conservative, expected, stretch).",
+      "states": {
+        "loading": "Image skeleton cards.",
+        "empty": "N/A",
+        "error": "Generation failed, Retry."
+      },
+      "layout": "Horizontal snap carousel of full-bleed image cards. Underneath: weight/body-fat estimates, 'what it takes' text, and engine reasoning card. Sticky 'Choose Target' CTA."
+    },
+    {
+      "name": "Plan Overview",
+      "purpose": "Weekly calendar, meals, workouts, and recovery protocol.",
+      "states": {
+        "loading": "Skeleton lists.",
+        "empty": "No plan scheduled today.",
+        "error": "Error fetching plan."
+      },
+      "layout": "Top weekly horizontal calendar. Full-bleed photo cards with dark gradient scrims for meal/workout sections. Left-aligned titles. Medical disclaimer at the very bottom."
+    },
+    {
+      "name": "Today",
+      "purpose": "Home tab for daily checkboxes, quick logging, and stats.",
+      "states": {
+        "loading": "Skeleton rows.",
+        "empty": "All tasks completed.",
+        "error": "Error fetching today's data."
+      },
+      "layout": "Top: Big thin numerals for streak/next milestone. Middle: Flat list rows with hairline dividers for meals/workouts. Trailing status icons (check/rescheduled). Bottom: AI coach nudge card."
+    },
+    {
+      "name": "Coach",
+      "purpose": "Streaming AI coach chat interface.",
+      "states": {
+        "loading": "Skeleton messages.",
+        "empty": "Start a conversation.",
+        "error": "Connection lost."
+      },
+      "layout": "Standard chat interface but styled like a clinical log. Messages use surfaceSecondary. Bottom input field. Timestamp metadata in small uppercase."
+    },
+    {
+      "name": "Progress",
+      "purpose": "Side-by-side comparison viewer and weight charts.",
+      "states": {
+        "loading": "Chart skeletons drawing in.",
+        "empty": "Log more data to see trends.",
+        "error": "Data fetch error."
+      },
+      "layout": "Top half: Image comparison viewer with draggable divider (Reanimated/Gesture Handler). Bottom half: Thin gradient line charts (Weight/Body Fat/Energy) on a dark grid with pill-shaped filters underneath."
+    },
+    {
+      "name": "Settings",
+      "purpose": "Manage units, notifications, exports, and account deletion.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Simple flat list with hairline dividers. Sections for preferences, data, and destructive actions."
+    }
+  ],
+  "images": {
+    "meal_prep_card": {
+      "url": "https://images.unsplash.com/photo-1547592180-85f173990554?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwbWVhbCUyMHByZXAlMjBmb29kJTIwbmV1dHJhbCUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzg4MTI2NTEyfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Healthy meal prep in neutral background"
+    },
+    "workout_equipment_card": {
+      "url": "https://images.unsplash.com/photo-1576678927484-cc907957088c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHxneW0lMjBlcXVpcG1lbnQlMjBkdW1iYmVsbHMlMjBkYXJrJTIwbmV1dHJhbCUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzg4MTI2NTEyfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark dumbbells on a rack"
+    },
+    "camera_silhouette": {
+      "url": "https://images.unsplash.com/photo-1556065685-813b084639c5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwxfHxibGFuayUyMGJvZHklMjBzaWxob3VldHRlJTIwb3V0bGluZSUyMG5ldXRyYWx8ZW58MHx8fHwxNzg4MTI2NTEyfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Body silhouette outline"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Use a StyleSheet-based theming approach (design token object) for styling. Do not use NativeWind.",
+    "Implement the 'lab instrument' aesthetic strictly: use background #0E0F12, surface #17181C, and borders #26272C. Use thin typography (Inter) with big numerals for stats and small, uppercase, letter-spaced labels for metadata.",
+    "Charts MUST be thin gradient line charts (Teal #2DD4BF -> Blue #3B82F6 -> Violet #8B5CF6) with small circular markers on a dark grid, resembling clinical monitoring dashboards.",
+    "Use full-bleed image cards for plan sections (meals, workouts). These MUST have a vertical gradient scrim layered between the image and text (transparent top -> >=70% surfaceInverse bottom) to ensure readability.",
+    "List rows must be flat with hairline (border 1px max) dividers and trailing status text (e.g., neutral gray 'rescheduled' instead of a red X for missed items).",
+    "Micro-interactions are mandatory: Checkbox completion requires a small haptic + 200ms ease animation. Charts must draw in on mount.",
+    "Do NOT use spinners for loading states. Use skeleton loaders that map to the actual UI shape.",
+    "The Progress screen requires a custom side-by-side image comparison viewer with a draggable divider using react-native-reanimated and react-native-gesture-handler.",
+    "Ensure high accessibility: minimum AA contrast, dynamic type support, minimum 44x44 tap targets.",
+    "Include a short medical disclaimer on every plan screen.",
+    "Ensure 'Feather' thin line icons are used globally. Use the accent tint for active tab states."
+  ]
+}
