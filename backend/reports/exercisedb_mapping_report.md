@@ -3,11 +3,11 @@
 
 ## Summary
 
-- ✅ alias (verified): **15**
+- ✅ alias (verified): **28**
 - 🟨 alias approx (reviewed substitution): **2**
 - ⚠️ fuzzy (NEEDS REVIEW): **0**
 - 🚶 cardio static (no GIF by design): **2**
-- 🖼️ poster reviewed / no confident match: **3**
+- 🖼️ poster reviewed / no confident match: **5**
 
 ## ⚠️ Flagged for your review
 
@@ -16,7 +16,7 @@
 | 🟨 approx | One-Arm Dumbbell Row | 0293 | ExerciseDB id=0293 "dumbbell bent over row" via RapidAPI — two-arm dumbbell row used for a one-arm movement |
 | 🟨 approx | Band Lat Pulldown | 0198 | ExerciseDB id=0198 "cable pulldown" via RapidAPI — cable pulldown substituted for band variant (no band pulldown in ExerciseDB) |
 
-**17/22 exercises show a demo GIF; the rest use static posters/icons.**
+**30/37 exercises show a demo GIF; the rest use static posters/icons.**
 
 | slug | name | muscle_groups | match | exdb_id | media | score | detail |
 |---|---|---|---|---|---|---|---|
@@ -42,4 +42,19 @@
 | brisk-walk | Brisk Outdoor Walk | cardio | 🚶 cardio (static) |  | cardio_static |  | Cardio/locomotion — no form video needed; follow the cues. |
 | plank | Plank | core | 🖼️ poster (reviewed) |  | poster |  | No faithful ExerciseDB demo — static poster + cues (reviewed). |
 | dead-bug | Dead Bug | core | ✅ alias | 0276 | gif |  | ExerciseDB id=0276 "dead bug" via RapidAPI |
+| chest-press-machine | Chest Press Machine | chest, triceps, shoulders | ✅ alias | 0576 | gif |  | ExerciseDB id=0576 "lever chest press" via RapidAPI |
+| seated-row-machine | Seated Row Machine | back, biceps | ✅ alias | 1350 | gif |  | ExerciseDB id=1350 "lever seated row" via RapidAPI |
+| cable-seated-row | Cable Seated Row | back, biceps | ✅ alias | 0861 | gif |  | ExerciseDB id=0861 "cable seated row" via RapidAPI |
+| leg-press | Leg Press | quads, glutes | ✅ alias | 0739 | gif |  | ExerciseDB id=0739 "sled 45° leg press" via RapidAPI |
+| kettlebell-goblet-squat | Kettlebell Goblet Squat | quads, glutes | ✅ alias | 0534 | gif |  | ExerciseDB id=0534 "kettlebell goblet squat" via RapidAPI |
+| dumbbell-lunge | Dumbbell Lunge | quads, glutes | ✅ alias | 0336 | gif |  | ExerciseDB id=0336 "dumbbell lunge" via RapidAPI |
+| kettlebell-swing | Kettlebell Swing | glutes, hamstrings, back | ✅ alias | 0549 | gif |  | ExerciseDB id=0549 "kettlebell swing" via RapidAPI |
+| kettlebell-deadlift | Kettlebell Deadlift | glutes, hamstrings, back | 🖼️ poster (reviewed) |  | poster |  | No faithful ExerciseDB demo — static poster + cues (reviewed). |
+| cable-chest-fly | Cable Chest Fly | chest | ✅ alias | 0227 | gif |  | ExerciseDB id=0227 "cable standing fly" via RapidAPI |
+| triceps-pushdown | Triceps Pushdown | triceps | ✅ alias | 0201 | gif |  | ExerciseDB id=0201 "cable pushdown" via RapidAPI |
+| face-pull | Face Pull | shoulders, back | 🖼️ poster (reviewed) |  | poster |  | No faithful ExerciseDB demo — static poster + cues (reviewed). |
+| leg-curl | Leg Curl | hamstrings | ✅ alias | 0586 | gif |  | ExerciseDB id=0586 "lever lying leg curl" via RapidAPI |
+| leg-extension | Leg Extension | quads | ✅ alias | 0585 | gif |  | ExerciseDB id=0585 "lever leg extension" via RapidAPI |
+| dumbbell-lateral-raise | Dumbbell Lateral Raise | shoulders | ✅ alias | 0334 | gif |  | ExerciseDB id=0334 "dumbbell lateral raise" via RapidAPI |
+| dumbbell-biceps-curl | Dumbbell Biceps Curl | biceps | ✅ alias | 0294 | gif |  | ExerciseDB id=0294 "dumbbell biceps curl" via RapidAPI |
 

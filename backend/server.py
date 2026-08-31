@@ -745,6 +745,8 @@ async def get_plan(environment: Optional[str] = Query(None),
             ex["poster_image_url"] = src.get("poster_image_url")
             ex["media_kind"] = (src.get("media") or {}).get("media_kind")
             ex["media"] = src.get("media", ex.get("media"))
+            if src.get("cardio"):
+                ex["cardio"] = src["cardio"]
     return out
 
 

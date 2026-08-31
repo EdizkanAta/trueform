@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -122,7 +122,9 @@ export default function PlanScreen() {
                   <Image source={{ uri: mediaUrl(ex.poster_image_url || ex.media?.demo_url) }} style={{ width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
                 ) : (
                   <View style={{ width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" }}>
-                    <Feather name="activity" size={20} color={colors.textTertiary} />
+                    {(ex.media_kind || ex.media?.media_kind) === "cardio_static"
+                      ? <Ionicons name="walk" size={22} color={colors.accentTeal} />
+                      : <Feather name="user" size={20} color={colors.textTertiary} />}
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
@@ -192,18 +194,35 @@ export default function PlanScreen() {
                     const kind = selEx.media_kind || selEx.media?.media_kind;
                     const isCardio = kind === "cardio_static";
                     return (
-                      <View testID="plan-ex-poster-placeholder" style={{ height: 160, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg }}>
-                        <Feather name={isCardio ? "trending-up" : "activity"} size={30} color={colors.accentTeal} />
-                        <Text style={{ color: colors.textSecondary, fontSize: font.size.sm, marginTop: 8, fontWeight: "600" }}>
-                          {isCardio ? "No form video needed" : "Static reference"}
-                        </Text>
+                      <View testID="plan-ex-poster-placeholder" style={{ height: 160, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
+                        <View style={{ position: "absolute", top: 10, right: 10, backgroundColor: colors.bg, borderColor: colors.border, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill }}>
+                          <Text style={{ color: colors.textTertiary, fontSize: 9, letterSpacing: 1, fontWeight: "700" }}>{isCardio ? "CARDIO" : "REFERENCE"}</Text>
+                        </View>
+                        {isCardio
+                          ? <Ionicons name="walk" size={40} color={colors.accentTeal} />
+                          : <Feather name="user" size={38} color={colors.accentTeal} />}
+                        <Text style={{ color: colors.textPrimary, fontSize: font.size.md, marginTop: 8, fontWeight: "700" }}>{selEx.name}</Text>
                         <Text style={{ color: colors.textTertiary, fontSize: font.size.xs, marginTop: 2, textAlign: "center" }}>
-                          {isCardio ? "It's walking — just follow the cues below." : "Follow the cues below."}
+                          {isCardio ? "No form video needed — follow the pace card below." : "Static reference — follow the cues below."}
                         </Text>
                       </View>
                     );
                   })()
                 )}
+                {selEx.cardio ? (
+                  <View testID="plan-cardio-card" style={{ marginTop: spacing.md, backgroundColor: colors.surfaceElevated, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: spacing.sm }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Ionicons name="speedometer-outline" size={16} color={colors.accentTeal} />
+                      <Label>Pace &amp; incline</Label>
+                    </View>
+                    {[["Pace", selEx.cardio.pace], ["Incline", selEx.cardio.incline], ["Duration", selEx.cardio.duration], ["Effort", selEx.cardio.intensity]].filter(([, v]) => !!v).map(([k, v]) => (
+                      <View key={k} style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                        <Text style={{ color: colors.textTertiary, fontSize: font.size.sm }}>{k}</Text>
+                        <Text style={{ color: colors.textPrimary, fontSize: font.size.sm, fontWeight: "600", flexShrink: 1, textAlign: "right", marginLeft: spacing.md }}>{v}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
                 <View style={{ flexDirection: "row", gap: spacing.xl, marginTop: spacing.md }}>
                   <StatReadout value={selEx.sets} label="sets" size={font.size.xl} />
                   <StatReadout value={selEx.reps} label="reps" size={font.size.lg} />

@@ -173,12 +173,26 @@ _ALIAS: Dict[str, dict] = {
     "Dumbbell Romanian Deadlift": {"id": "1459", "exdb": "dumbbell romanian deadlift",     "target": "glutes",     "equipment": "dumbbell"},
     "Glute Bridge":               {"id": "3013", "exdb": "low glute bridge on floor",      "target": "glutes",     "equipment": "body weight"},
     "Dead Bug":                   {"id": "0276", "exdb": "dead bug",                       "target": "abs",        "equipment": "body weight"},
+    # ---- expanded catalog (verified 2026-06) ----
+    "Chest Press Machine":        {"id": "0576", "exdb": "lever chest press",              "target": "pectorals",  "equipment": "leverage machine"},
+    "Seated Row Machine":         {"id": "1350", "exdb": "lever seated row",               "target": "upper back", "equipment": "leverage machine"},
+    "Cable Seated Row":           {"id": "0861", "exdb": "cable seated row",               "target": "upper back", "equipment": "cable"},
+    "Leg Press":                  {"id": "0739", "exdb": "sled 45° leg press",             "target": "glutes",     "equipment": "sled machine"},
+    "Kettlebell Goblet Squat":    {"id": "0534", "exdb": "kettlebell goblet squat",        "target": "glutes",     "equipment": "kettlebell"},
+    "Dumbbell Lunge":             {"id": "0336", "exdb": "dumbbell lunge",                 "target": "glutes",     "equipment": "dumbbell"},
+    "Kettlebell Swing":           {"id": "0549", "exdb": "kettlebell swing",               "target": "glutes",     "equipment": "kettlebell"},
+    "Cable Chest Fly":            {"id": "0227", "exdb": "cable standing fly",             "target": "pectorals",  "equipment": "cable"},
+    "Triceps Pushdown":           {"id": "0201", "exdb": "cable pushdown",                 "target": "triceps",    "equipment": "cable"},
+    "Leg Curl":                   {"id": "0586", "exdb": "lever lying leg curl",           "target": "hamstrings", "equipment": "leverage machine"},
+    "Leg Extension":              {"id": "0585", "exdb": "lever leg extension",            "target": "quads",      "equipment": "leverage machine"},
+    "Dumbbell Lateral Raise":     {"id": "0334", "exdb": "dumbbell lateral raise",         "target": "delts",      "equipment": "dumbbell"},
+    "Dumbbell Biceps Curl":       {"id": "0294", "exdb": "dumbbell biceps curl",           "target": "biceps",     "equipment": "dumbbell"},
 }
 
 # Reviewed: ExerciseDB has no faithful GIF for these (only misleading dynamic
 # variants), so we intentionally show a clean static poster + text cues rather
 # than a wrong demo. A wrong demo is worse than no demo.
-_POSTER_ONLY = {"Push-Up", "Pike Push-Up", "Plank"}
+_POSTER_ONLY = {"Push-Up", "Pike Push-Up", "Plank", "Face Pull", "Kettlebell Deadlift"}
 
 # Cardio / locomotion: nobody needs a form video for walking. Static icon + cues.
 _CARDIO_NO_GIF = {"Incline Treadmill Walk", "Brisk Outdoor Walk", "Stair Climber",
