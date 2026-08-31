@@ -147,6 +147,44 @@ _SEARCH_HINTS: Dict[str, dict] = {
 }
 
 
+# --------------------------------------------------------------------------- #
+# HUMAN-CURATED alias table: our exercise name -> a verified ExerciseDB entry.
+# Each id was confirmed live against the ExerciseDB API (name + target +
+# equipment checked for a semantic movement match, not string similarity).
+#   approx=True  -> a deliberate, reviewed substitution (movement + target agree
+#                   but a variant/equipment differs, e.g. band<->cable pulldown).
+# Verified 2026-06 against host exercisedb.p.rapidapi.com.
+# --------------------------------------------------------------------------- #
+_ALIAS: Dict[str, dict] = {
+    "Barbell Bench Press":        {"id": "0025", "exdb": "barbell bench press",            "target": "pectorals",  "equipment": "barbell"},
+    "Dumbbell Bench Press":       {"id": "0289", "exdb": "dumbbell bench press",           "target": "pectorals",  "equipment": "dumbbell"},
+    "Overhead Barbell Press":     {"id": "0091", "exdb": "barbell seated overhead press",  "target": "delts",      "equipment": "barbell"},
+    "Dumbbell Shoulder Press":    {"id": "0405", "exdb": "dumbbell seated shoulder press", "target": "delts",      "equipment": "dumbbell"},
+    "Barbell Row":                {"id": "0027", "exdb": "barbell bent over row",          "target": "upper back", "equipment": "barbell"},
+    "One-Arm Dumbbell Row":       {"id": "0293", "exdb": "dumbbell bent over row",         "target": "upper back", "equipment": "dumbbell", "approx": True, "note": "two-arm dumbbell row used for a one-arm movement"},
+    "Band / Table Inverted Row":  {"id": "0499", "exdb": "inverted row",                   "target": "upper back", "equipment": "body weight"},
+    "Lat Pulldown":               {"id": "2330", "exdb": "cable lat pulldown full range of motion", "target": "lats", "equipment": "cable"},
+    "Pull-Up":                    {"id": "0652", "exdb": "pull-up",                        "target": "lats",       "equipment": "body weight"},
+    "Band Lat Pulldown":          {"id": "0198", "exdb": "cable pulldown",                 "target": "lats",       "equipment": "cable", "approx": True, "note": "cable pulldown substituted for band variant (no band pulldown in ExerciseDB)"},
+    "Barbell Back Squat":         {"id": "0043", "exdb": "barbell full squat",             "target": "glutes",     "equipment": "barbell"},
+    "Goblet Squat":               {"id": "1760", "exdb": "dumbbell goblet squat",          "target": "quads",      "equipment": "dumbbell"},
+    "Bodyweight Squat":           {"id": "3533", "exdb": "quads (bodyweight squat)",       "target": "quads",      "equipment": "body weight"},
+    "Romanian Deadlift":          {"id": "0085", "exdb": "barbell romanian deadlift",      "target": "glutes",     "equipment": "barbell"},
+    "Dumbbell Romanian Deadlift": {"id": "1459", "exdb": "dumbbell romanian deadlift",     "target": "glutes",     "equipment": "dumbbell"},
+    "Glute Bridge":               {"id": "3013", "exdb": "low glute bridge on floor",      "target": "glutes",     "equipment": "body weight"},
+    "Dead Bug":                   {"id": "0276", "exdb": "dead bug",                       "target": "abs",        "equipment": "body weight"},
+}
+
+# Reviewed: ExerciseDB has no faithful GIF for these (only misleading dynamic
+# variants), so we intentionally show a clean static poster + text cues rather
+# than a wrong demo. A wrong demo is worse than no demo.
+_POSTER_ONLY = {"Push-Up", "Pike Push-Up", "Plank"}
+
+# Cardio / locomotion: nobody needs a form video for walking. Static icon + cues.
+_CARDIO_NO_GIF = {"Incline Treadmill Walk", "Brisk Outdoor Walk", "Stair Climber",
+                  "Treadmill Walk", "Stationary Bike", "Elliptical"}
+
+
 class ExerciseDBMediaProvider(MediaProvider):
     """ExerciseDB (RapidAPI) — maps our catalog to ExerciseDB exercise IDs and
     uses their demo GIF as both the poster image and the "video".
@@ -177,7 +215,7 @@ class ExerciseDBMediaProvider(MediaProvider):
     license = "ExerciseDB API (RapidAPI) — per your RapidAPI subscription terms"
     HOST = "exercisedb.p.rapidapi.com"
     BASE = f"https://{HOST}"
-    MATCH_THRESHOLD = 0.55
+    MATCH_THRESHOLD = 0.72
     TARGET_MATCH_BONUS = 0.15
     EQUIPMENT_MATCH_BONUS = 0.2
     EQUIPMENT_MISMATCH_PENALTY = 0.2
@@ -234,37 +272,75 @@ class ExerciseDBMediaProvider(MediaProvider):
                 best, best_score = candidate, score
         return best, best_score
 
-    def enrich(self, exercise_name: str) -> dict:
-        if not self._api_key:
-            return self._unmapped("RAPIDAPI_KEY not configured — showing placeholder.")
-
-        hint = _SEARCH_HINTS.get(exercise_name, {"query": exercise_name, "targets": []})
-        try:
-            match, score = self._best_match(exercise_name, hint)
-        except Exception:  # provider must never break exercise seeding
-            logger.exception("ExerciseDB lookup failed for %r", exercise_name)
-            return self._unmapped("ExerciseDB lookup failed — showing placeholder.")
-
-        if not match or score < self.MATCH_THRESHOLD:
-            return self._unmapped("No confident ExerciseDB match — showing placeholder.")
-
-        # The live ExerciseDB API no longer returns a public `gifUrl`; the demo
-        # GIF is served from an authenticated /image endpoint (needs RAPIDAPI_KEY
-        # in headers). We reference it by id via our own backend proxy route
-        # (/api/exercise-media/{id}) so the key never reaches the client.
-        exercise_id = match.get("id")
-        if not exercise_id:
-            return self._unmapped("ExerciseDB match had no id — showing placeholder.")
-
+    def _gif(self, exercise_id: str, exdb_name: str, match_kind: str,
+             note: Optional[str] = None, score: Optional[float] = None) -> dict:
+        attribution = f"ExerciseDB id={exercise_id} \"{exdb_name}\" via RapidAPI"
+        if note:
+            attribution += f" — {note}"
         return {
             "demo_url": f"/api/exercise-media/{exercise_id}",
             "source": "exercisedb.p.rapidapi.com",
             "license": self.license,
-            "attribution": f"ExerciseDB id={match.get('id')} \"{match.get('name')}\" via RapidAPI",
-            "exercisedb_id": match.get("id"),
-            "exercisedb_target": match.get("target"),
-            "match_score": round(score, 3),
+            "attribution": attribution,
+            "exercisedb_id": exercise_id,
+            "exercisedb_target": None,
+            "media_kind": "gif",
+            "match_kind": match_kind,          # "alias" | "alias_approx" | "fuzzy"
+            "match_score": round(score, 3) if score is not None else None,
         }
+
+    def _static(self, media_kind: str, match_kind: str, reason: str) -> dict:
+        # No GIF by design (cardio) or by review (no faithful demo). Frontend
+        # renders a clean icon/poster + the exercise's text cues.
+        return {"demo_url": None, "source": self.name, "license": self.license,
+                "attribution": reason, "media_kind": media_kind, "match_kind": match_kind}
+
+    def enrich(self, exercise_name: str) -> dict:
+        if not self._api_key:
+            return self._unmapped("RAPIDAPI_KEY not configured — showing placeholder.")
+
+        # (0) Cardio / locomotion — no form video needed.
+        if exercise_name in _CARDIO_NO_GIF:
+            return self._static("cardio_static", "cardio",
+                                "Cardio/locomotion — no form video needed; follow the cues.")
+
+        # (1) Reviewed poster-only — ExerciseDB has no faithful GIF for this.
+        if exercise_name in _POSTER_ONLY:
+            return self._static("poster", "poster_reviewed",
+                                "No faithful ExerciseDB demo — static poster + cues (reviewed).")
+
+        # (2) Human-curated alias table takes precedence over any fuzzy match.
+        alias = _ALIAS.get(exercise_name)
+        if alias:
+            return self._gif(alias["id"], alias.get("exdb", ""),
+                             "alias_approx" if alias.get("approx") else "alias",
+                             note=alias.get("note"))
+
+        # (3) Fuzzy fallback — only for exercises not yet curated. Strict: must
+        #     clear the threshold AND agree on target AND (when both known) on
+        #     equipment. Otherwise fall back to a poster. Wrong demo > no demo.
+        hint = _SEARCH_HINTS.get(exercise_name, {"query": exercise_name, "targets": []})
+        try:
+            match, score = self._best_match(exercise_name, hint)
+        except Exception:
+            logger.exception("ExerciseDB lookup failed for %r", exercise_name)
+            return self._unmapped("ExerciseDB lookup failed — showing placeholder.")
+
+        if not match or score < self.MATCH_THRESHOLD:
+            return self._static("poster", "none", "No confident ExerciseDB match — showing poster.")
+
+        targets = set(hint.get("targets", []))
+        if targets and match.get("target") not in targets:
+            return self._static("poster", "none",
+                                "Best ExerciseDB match had a different target — showing poster.")
+        q_eq = _equipment_keyword(_normalize(hint.get("query") or exercise_name))
+        c_eq = _equipment_keyword(_normalize(match.get("name") or ""))
+        if q_eq and c_eq and q_eq != c_eq:
+            return self._static("poster", "none",
+                                "Best ExerciseDB match used different equipment — showing poster.")
+        if not match.get("id"):
+            return self._static("poster", "none", "ExerciseDB match had no id — showing poster.")
+        return self._gif(match["id"], match.get("name", ""), "fuzzy", score=score)
 
 
 _PROVIDERS = {

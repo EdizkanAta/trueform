@@ -188,10 +188,21 @@ export default function PlanScreen() {
                 {selEx.poster_image_url || selEx.media?.demo_url ? (
                   <Image source={{ uri: mediaUrl(selEx.poster_image_url || selEx.media?.demo_url) }} style={{ width: "100%", height: 200, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
                 ) : (
-                  <View testID="plan-ex-poster-placeholder" style={{ height: 160, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" }}>
-                    <Feather name="activity" size={30} color={colors.textTertiary} />
-                    <Text style={{ color: colors.textTertiary, fontSize: font.size.xs, marginTop: 6 }}>Demo coming soon</Text>
-                  </View>
+                  (() => {
+                    const kind = selEx.media_kind || selEx.media?.media_kind;
+                    const isCardio = kind === "cardio_static";
+                    return (
+                      <View testID="plan-ex-poster-placeholder" style={{ height: 160, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg }}>
+                        <Feather name={isCardio ? "trending-up" : "activity"} size={30} color={colors.accentTeal} />
+                        <Text style={{ color: colors.textSecondary, fontSize: font.size.sm, marginTop: 8, fontWeight: "600" }}>
+                          {isCardio ? "No form video needed" : "Static reference"}
+                        </Text>
+                        <Text style={{ color: colors.textTertiary, fontSize: font.size.xs, marginTop: 2, textAlign: "center" }}>
+                          {isCardio ? "It's walking — just follow the cues below." : "Follow the cues below."}
+                        </Text>
+                      </View>
+                    );
+                  })()
                 )}
                 <View style={{ flexDirection: "row", gap: spacing.xl, marginTop: spacing.md }}>
                   <StatReadout value={selEx.sets} label="sets" size={font.size.xl} />

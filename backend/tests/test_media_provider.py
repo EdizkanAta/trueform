@@ -28,15 +28,13 @@ def _resp(status_ok=True, json_body=None, raise_json=False):
     return _R()
 
 
-BENCH_PRESS_CANDIDATE = {
-    "id": "0025", "name": "barbell bench press", "target": "pectorals",
-    "bodyPart": "chest", "equipment": "barbell",
-    "gifUrl": "https://v2.exercisedb.io/image/abc123",
+FLY_CANDIDATE = {
+    "id": "0025", "name": "cable fly", "target": "pectorals",
+    "bodyPart": "chest", "equipment": "cable",
 }
 UNRELATED_CANDIDATE = {
     "id": "9999", "name": "seated leg curl", "target": "hamstrings",
     "bodyPart": "upper legs", "equipment": "leg curl machine",
-    "gifUrl": "https://v2.exercisedb.io/image/zzz999",
 }
 
 
@@ -53,141 +51,166 @@ def test_no_api_key_returns_unmapped_without_network_call(monkeypatch):
         result = provider.enrich("Barbell Bench Press")
     mock_get.assert_not_called()
     assert result["demo_url"] is None
-    assert result["source"] == "exercisedb"
     assert "RAPIDAPI_KEY" in result["attribution"]
 
 
-def test_name_search_match_populates_demo_url_and_attribution():
+def test_alias_takes_precedence_and_makes_no_network_call():
+    """Curated alias exercises resolve to their verified id without any live lookup."""
     with patch("media_provider.requests.get") as mock_get:
-        mock_get.return_value = _resp(json_body=[BENCH_PRESS_CANDIDATE])
         provider = mp.ExerciseDBMediaProvider()
         result = provider.enrich("Barbell Bench Press")
-
-    assert result["demo_url"] == BENCH_PRESS_CANDIDATE["gifUrl"]
-    assert result["source"] == "exercisedb.p.rapidapi.com"
+    mock_get.assert_not_called()
+    assert result["demo_url"] == "/api/exercise-media/0025"
     assert result["exercisedb_id"] == "0025"
+    assert result["match_kind"] == "alias"
+    assert result["media_kind"] == "gif"
+
+
+def test_alias_approx_is_flagged():
+    with patch("media_provider.requests.get") as mock_get:
+        provider = mp.ExerciseDBMediaProvider()
+        result = provider.enrich("Band Lat Pulldown")
+    mock_get.assert_not_called()
+    assert result["match_kind"] == "alias_approx"
+    assert result["demo_url"] == "/api/exercise-media/0198"
+
+
+def test_cardio_is_static_no_gif():
+    with patch("media_provider.requests.get") as mock_get:
+        provider = mp.ExerciseDBMediaProvider()
+        result = provider.enrich("Incline Treadmill Walk")
+    mock_get.assert_not_called()
+    assert result["demo_url"] is None
+    assert result["media_kind"] == "cardio_static"
+    assert result["match_kind"] == "cardio"
+
+
+def test_poster_only_is_static_no_gif():
+    with patch("media_provider.requests.get") as mock_get:
+        provider = mp.ExerciseDBMediaProvider()
+        result = provider.enrich("Plank")
+    mock_get.assert_not_called()
+    assert result["demo_url"] is None
+    assert result["media_kind"] == "poster"
+    assert result["match_kind"] == "poster_reviewed"
+
+
+def test_fuzzy_name_match_for_uncurated_exercise(monkeypatch):
+    """An exercise not in the alias/poster/cardio sets falls through to fuzzy."""
+    monkeypatch.setitem(mp._SEARCH_HINTS, "Cable Fly", {"query": "cable fly", "targets": ["pectorals"]})
+    with patch("media_provider.requests.get") as mock_get:
+        mock_get.return_value = _resp(json_body=[FLY_CANDIDATE])
+        provider = mp.ExerciseDBMediaProvider()
+        result = provider.enrich("Cable Fly")
+    assert result["demo_url"] == "/api/exercise-media/0025"
+    assert result["match_kind"] == "fuzzy"
     assert result["match_score"] > provider.MATCH_THRESHOLD
-    assert "0025" in result["attribution"]
-    assert "RapidAPI" in result["license"]
-    # Only the name-search endpoint should have been hit.
     assert mock_get.call_count == 1
-    called_url = mock_get.call_args.args[0]
-    assert "/exercises/name/" in called_url
+    assert "/exercises/name/" in mock_get.call_args.args[0]
 
 
-def test_falls_back_to_target_search_when_name_search_is_empty():
+def test_falls_back_to_target_search_when_name_search_is_empty(monkeypatch):
+    monkeypatch.setitem(mp._SEARCH_HINTS, "Cable Fly", {"query": "cable fly", "targets": ["pectorals"]})
+
     def _side_effect(url, headers=None, timeout=None):
         if "/exercises/name/" in url:
             return _resp(json_body=[])
         if "/exercises/target/" in url:
-            return _resp(json_body=[BENCH_PRESS_CANDIDATE])
+            return _resp(json_body=[FLY_CANDIDATE])
         raise AssertionError(f"unexpected url: {url}")
 
     with patch("media_provider.requests.get", side_effect=_side_effect) as mock_get:
         provider = mp.ExerciseDBMediaProvider()
-        result = provider.enrich("Barbell Bench Press")
+        result = provider.enrich("Cable Fly")
 
-    assert result["demo_url"] == BENCH_PRESS_CANDIDATE["gifUrl"]
+    assert result["demo_url"] == "/api/exercise-media/0025"
     urls = [c.args[0] for c in mock_get.call_args_list]
-    assert any("/exercises/name/" in u for u in urls)
     assert any("/exercises/target/" in u for u in urls)
 
 
-def test_low_similarity_candidate_falls_back_to_placeholder():
+def test_low_similarity_candidate_falls_back_to_poster(monkeypatch):
+    monkeypatch.setitem(mp._SEARCH_HINTS, "Cable Fly", {"query": "cable fly", "targets": ["pectorals"]})
     with patch("media_provider.requests.get") as mock_get:
         mock_get.return_value = _resp(json_body=[UNRELATED_CANDIDATE])
         provider = mp.ExerciseDBMediaProvider()
-        result = provider.enrich("Barbell Bench Press")
-
+        result = provider.enrich("Cable Fly")
     assert result["demo_url"] is None
-    assert result["source"] == "exercisedb"
-    assert "No confident" in result["attribution"]
+    assert result["match_kind"] == "none"
+
+
+def test_fuzzy_wrong_target_falls_back_to_poster(monkeypatch):
+    """Even a high name-similarity candidate is rejected if its target disagrees."""
+    monkeypatch.setitem(mp._SEARCH_HINTS, "Cable Fly", {"query": "cable fly", "targets": ["pectorals"]})
+    wrong_target = {"id": "0025", "name": "cable fly", "target": "quads", "equipment": "cable"}
+    with patch("media_provider.requests.get") as mock_get:
+        mock_get.return_value = _resp(json_body=[wrong_target])
+        provider = mp.ExerciseDBMediaProvider()
+        result = provider.enrich("Cable Fly")
+    assert result["demo_url"] is None
+    assert result["match_kind"] == "none"
 
 
 def test_unmapped_exercise_never_crashes():
-    """An exercise name outside our known catalog (no _SEARCH_HINTS entry)
-    still works — it searches on the raw name and can miss cleanly."""
     with patch("media_provider.requests.get") as mock_get:
         mock_get.return_value = _resp(json_body=[])
         provider = mp.ExerciseDBMediaProvider()
         result = provider.enrich("Some Brand New Exercise Nobody Mapped")
-
     assert result["demo_url"] is None
-    assert result["source"] == "exercisedb"
 
 
-def test_candidate_missing_gif_url_falls_back_to_placeholder():
-    no_gif = {**BENCH_PRESS_CANDIDATE, "gifUrl": None}
-    with patch("media_provider.requests.get") as mock_get:
-        mock_get.return_value = _resp(json_body=[no_gif])
-        provider = mp.ExerciseDBMediaProvider()
-        result = provider.enrich("Barbell Bench Press")
-
-    assert result["demo_url"] is None
-    assert "no demo GIF" in result["attribution"]
-
-
-def test_http_error_status_never_crashes():
+def test_http_error_status_never_crashes(monkeypatch):
+    monkeypatch.setitem(mp._SEARCH_HINTS, "Cable Fly", {"query": "cable fly", "targets": []})
     with patch("media_provider.requests.get") as mock_get:
         mock_get.return_value = _resp(status_ok=False, json_body=None)
         provider = mp.ExerciseDBMediaProvider()
-        result = provider.enrich("Barbell Bench Press")
-
+        result = provider.enrich("Cable Fly")
     assert result["demo_url"] is None
 
 
-def test_network_exception_never_crashes():
+def test_network_exception_never_crashes(monkeypatch):
+    monkeypatch.setitem(mp._SEARCH_HINTS, "Cable Fly", {"query": "cable fly", "targets": []})
     with patch("media_provider.requests.get", side_effect=mp.requests.ConnectionError("boom")):
         provider = mp.ExerciseDBMediaProvider()
-        result = provider.enrich("Barbell Bench Press")
-
+        result = provider.enrich("Cable Fly")
     assert result["demo_url"] is None
 
 
-def test_malformed_json_never_crashes():
+def test_malformed_json_never_crashes(monkeypatch):
+    monkeypatch.setitem(mp._SEARCH_HINTS, "Cable Fly", {"query": "cable fly", "targets": []})
     with patch("media_provider.requests.get") as mock_get:
         mock_get.return_value = _resp(json_body=None, raise_json=True)
         provider = mp.ExerciseDBMediaProvider()
-        result = provider.enrich("Barbell Bench Press")
-
+        result = provider.enrich("Cable Fly")
     assert result["demo_url"] is None
 
 
-def test_non_list_json_body_is_treated_as_no_candidates():
+def test_non_list_json_body_is_treated_as_no_candidates(monkeypatch):
+    monkeypatch.setitem(mp._SEARCH_HINTS, "Cable Fly", {"query": "cable fly", "targets": []})
     with patch("media_provider.requests.get") as mock_get:
         mock_get.return_value = _resp(json_body={"error": "not found"})
         provider = mp.ExerciseDBMediaProvider()
-        result = provider.enrich("Barbell Bench Press")
-
+        result = provider.enrich("Cable Fly")
     assert result["demo_url"] is None
 
 
 def test_unexpected_exception_in_matching_is_swallowed(monkeypatch):
+    monkeypatch.setitem(mp._SEARCH_HINTS, "Cable Fly", {"query": "cable fly", "targets": []})
     provider = mp.ExerciseDBMediaProvider()
     monkeypatch.setattr(provider, "_best_match", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
-    result = provider.enrich("Barbell Bench Press")
+    result = provider.enrich("Cable Fly")
     assert result["demo_url"] is None
     assert "lookup failed" in result["attribution"]
 
 
-def test_equipment_mismatch_does_not_beat_correct_equipment_variant():
-    """Regression: plain fuzzy-string similarity favors a short wrong-equipment
-    name ("dumbbell row") over a longer correct-equipment one ("barbell bent
-    over row") because SequenceMatcher's ratio is length-sensitive. The
-    equipment-keyword bonus/penalty must correct for that."""
-    dumbbell_row = {
-        "id": "0652", "name": "dumbbell row", "target": "lats",
-        "gifUrl": "https://v2.exercisedb.io/image/0652",
-    }
-    barbell_row = {
-        "id": "0651", "name": "barbell bent over row", "target": "lats",
-        "gifUrl": "https://v2.exercisedb.io/image/0651",
-    }
+def test_equipment_mismatch_does_not_beat_correct_equipment_variant(monkeypatch):
+    """Fuzzy path: equipment-keyword bonus/penalty must pick the barbell variant."""
+    monkeypatch.setitem(mp._SEARCH_HINTS, "Barbell Pullover", {"query": "barbell pullover", "targets": ["lats"]})
+    dumbbell = {"id": "0652", "name": "dumbbell pullover", "target": "lats", "equipment": "dumbbell"}
+    barbell = {"id": "0651", "name": "barbell pullover", "target": "lats", "equipment": "barbell"}
     with patch("media_provider.requests.get") as mock_get:
-        mock_get.return_value = _resp(json_body=[dumbbell_row, barbell_row])
+        mock_get.return_value = _resp(json_body=[dumbbell, barbell])
         provider = mp.ExerciseDBMediaProvider()
-        result = provider.enrich("Barbell Row")
-
+        result = provider.enrich("Barbell Pullover")
     assert result["exercisedb_id"] == "0651"
 
 

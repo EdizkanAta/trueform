@@ -75,30 +75,36 @@ _OFFLINE_FIXTURE = [
 
 
 def _row(ex: dict, media: dict) -> str:
-    matched = media.get("demo_url") is not None
-    status = "✅ matched" if matched else "❌ unmapped"
+    kind = media.get("match_kind") or ("none" if media.get("demo_url") is None else "match")
+    mk = media.get("media_kind") or ""
+    icon = {"alias": "✅ alias", "alias_approx": "🟨 alias(approx)", "fuzzy": "⚠️ FUZZY-REVIEW",
+            "cardio": "🚶 cardio (static)", "poster_reviewed": "🖼️ poster (reviewed)",
+            "none": "⛔ poster (no match)"}.get(kind, "❌ unmapped")
     detail = media.get("attribution", "")
-    score = media.get("match_score", "")
-    return f"| {ex['slug']} | {ex['name']} | {', '.join(ex['muscle_groups'])} | {status} | {score} | {detail} |"
+    score = media.get("match_score") if media.get("match_score") is not None else ""
+    exid = media.get("exercisedb_id", "") or ""
+    return f"| {ex['slug']} | {ex['name']} | {', '.join(ex['muscle_groups'])} | {icon} | {exid} | {mk} | {score} | {detail} |"
 
 
 def _table_header() -> list[str]:
     return [
-        "| slug | name | muscle_groups | status | score | detail |",
-        "|---|---|---|---|---|---|",
+        "| slug | name | muscle_groups | match | exdb_id | media | score | detail |",
+        "|---|---|---|---|---|---|---|---|",
     ]
 
 
-def run_live() -> tuple[list[str], int, int]:
+def run_live() -> tuple[list[str], list[dict], int, int]:
     provider = mp.ExerciseDBMediaProvider()
     lines = _table_header()
+    medias = []
     matched_count = 0
     for ex in EXERCISES:
         media = provider.enrich(ex["name"])
+        medias.append({"ex": ex, "media": media})
         if media.get("demo_url"):
             matched_count += 1
         lines.append(_row(ex, media))
-    return lines, matched_count, len(EXERCISES)
+    return lines, medias, matched_count, len(EXERCISES)
 
 
 def run_offline_demo() -> tuple[list[str], int, int]:
@@ -132,6 +138,7 @@ def main() -> None:
 
     out = ["# ExerciseDB mapping report", ""]
 
+    medias: list[dict] = []
     if args.offline_demo:
         lines, matched, total = run_offline_demo()
         out.append("> **OFFLINE DEMO MODE** — candidates came from a small hand-picked local fixture, "
@@ -139,15 +146,44 @@ def main() -> None:
                     "Run without `--offline-demo` and a real `RAPIDAPI_KEY` for the authoritative report.")
         report_path = OFFLINE_DEMO_REPORT_PATH
     else:
-        lines, matched, total = run_live()
+        lines, medias, matched, total = run_live()
         if not (mp.os.environ.get("RAPIDAPI_KEY") or ""):
             out.append("> **No RAPIDAPI_KEY set** — every row below is unmapped because the provider "
                         "short-circuits without a key, not because of a real mismatch. Set `RAPIDAPI_KEY` "
                         "(see `backend/.env.example`) and re-run for real results.")
         report_path = LIVE_REPORT_PATH
 
+    # Breakdown by match kind + explicit review list for fuzzy (non-alias) matches.
+    if medias:
+        from collections import Counter
+        counts = Counter(m["media"].get("match_kind", "?") for m in medias)
+        out.append("")
+        out.append("## Summary")
+        out.append("")
+        out.append(f"- ✅ alias (verified): **{counts.get('alias', 0)}**")
+        out.append(f"- 🟨 alias approx (reviewed substitution): **{counts.get('alias_approx', 0)}**")
+        out.append(f"- ⚠️ fuzzy (NEEDS REVIEW): **{counts.get('fuzzy', 0)}**")
+        out.append(f"- 🚶 cardio static (no GIF by design): **{counts.get('cardio', 0)}**")
+        out.append(f"- 🖼️ poster reviewed / no confident match: "
+                   f"**{counts.get('poster_reviewed', 0) + counts.get('none', 0)}**")
+        approx = [m for m in medias if m["media"].get("match_kind") == "alias_approx"]
+        fuzzy = [m for m in medias if m["media"].get("match_kind") == "fuzzy"]
+        out.append("")
+        out.append("## ⚠️ Flagged for your review")
+        out.append("")
+        if not fuzzy and not approx:
+            out.append("_No fuzzy (non-alias) matches. Every GIF is either a verified alias or a "
+                       "reviewed approximate substitution; all others are intentional static posters._")
+        else:
+            out.append("| kind | name | exdb_id | detail |")
+            out.append("|---|---|---|---|")
+            for m in approx + fuzzy:
+                k = "🟨 approx" if m["media"]["match_kind"] == "alias_approx" else "⚠️ fuzzy"
+                out.append(f"| {k} | {m['ex']['name']} | {m['media'].get('exercisedb_id','')} | "
+                           f"{m['media'].get('attribution','')} |")
+
     out.append("")
-    out.append(f"**{matched}/{total} exercises matched.**")
+    out.append(f"**{matched}/{total} exercises show a demo GIF; the rest use static posters/icons.**")
     out.append("")
     out.extend(lines)
     out.append("")

@@ -740,7 +740,11 @@ async def get_plan(environment: Optional[str] = Query(None),
             ex.setdefault("form_cues", src.get("form_cues", []))
             if not ex.get("form_cues"):
                 ex["form_cues"] = src.get("form_cues", [])
-            ex.setdefault("poster_image_url", src.get("poster_image_url"))
+            # Exercise media is authoritative from the current catalog, not the
+            # plan snapshot — so audited mapping fixes apply to existing plans.
+            ex["poster_image_url"] = src.get("poster_image_url")
+            ex["media_kind"] = (src.get("media") or {}).get("media_kind")
+            ex["media"] = src.get("media", ex.get("media"))
     return out
 
 
