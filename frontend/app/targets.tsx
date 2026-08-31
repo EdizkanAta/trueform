@@ -3,7 +3,6 @@ import { Dimensions, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 
@@ -99,8 +98,12 @@ export default function TargetsScreen() {
               <Pressable key={label} testID={`target-card-${label}`} onPress={() => setSelected(label)}
                 style={{ width: cardW, borderRadius: radius.md, overflow: "hidden", borderWidth: 2, borderColor: isSel ? colors.accentTeal : colors.border }}>
                 <View style={{ height: 380, backgroundColor: colors.surface }}>
-                  <Image source={{ uri: fileUrl(r.path) }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                  {blur ? <BlurView intensity={60} tint="dark" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} /> : null}
+                  <Image source={{ uri: fileUrl(r.path) }} style={{ width: "100%", height: "100%" }} contentFit="cover" blurRadius={blur ? 65 : 0} />
+                  {blur ? (
+                    <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
+                      <Feather name="eye-off" size={22} color={overlay.onImage} />
+                    </View>
+                  ) : null}
                   <LinearGradient colors={["transparent", colors.scrim, colors.bg]} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 180 }} />
                   <View style={{ position: "absolute", top: 12, left: 12, backgroundColor: overlay.scrim, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill }}>
                     <Text style={{ color: overlay.onImage, fontSize: font.size.xs, letterSpacing: 1 }}>ESTIMATE</Text>

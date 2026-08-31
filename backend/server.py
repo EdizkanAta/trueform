@@ -6,6 +6,7 @@ client polls for completion. Token/image costs are logged per request.
 """
 import asyncio
 import base64
+import hashlib
 import logging
 import os
 import uuid
@@ -260,12 +261,18 @@ def _ext_from_filename(name: str) -> str:
 @api.post("/photo/upload")
 async def upload_base_photo(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     data = await file.read()
+    if not data:
+        raise HTTPException(400, "Empty file")
+    sha = hashlib.sha256(data).hexdigest()
     ext = _ext_from_filename(file.filename or "photo.jpg")
     uid = str(uuid.uuid4())
     path = objstore.object_path(user["id"], ext, uid)
     await objstore.put_object(path, data, file.content_type or "image/jpeg")
-    await db.users.update_one({"id": user["id"]}, {"$set": {"base_photo_path": path}})
-    return {"path": path}
+    await db.users.update_one({"id": user["id"]},
+                              {"$set": {"base_photo_path": path, "base_photo_sha256": sha}})
+    logger.info("UPLOAD base photo user=%s path=%s sha256=%s bytes=%d",
+                user["id"], path, sha, len(data))
+    return {"path": path, "sha256": sha}
 
 
 async def _resolve_user_from_token(token: str) -> Optional[dict]:
@@ -325,8 +332,14 @@ async def _run_generation(job_id: str, user: dict, profile: dict, goal: dict):
         result_d = _engine_result_dict(result)
         await db.jobs.update_one({"id": job_id},
                                  {"$set": {"progress": 20, "engine": result_d}})
-        # Base photo -> base64 for image-to-image
+        # Base photo -> base64 for image-to-image. NEVER substitute a stock image.
         content, _ = await objstore.get_object(user["base_photo_path"])
+        if not content:
+            raise RuntimeError("Base photo bytes empty — refusing to substitute a stock image")
+        render_sha = hashlib.sha256(content).hexdigest()
+        logger.info("RENDER base photo user=%s path=%s sha256=%s bytes=%d stored_sha=%s match=%s",
+                    user["id"], user["base_photo_path"], render_sha, len(content),
+                    user.get("base_photo_sha256"), render_sha == user.get("base_photo_sha256"))
         base_b64 = base64.b64encode(content).decode("utf-8")
 
         renders = {}

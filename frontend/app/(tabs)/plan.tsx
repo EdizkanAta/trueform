@@ -4,7 +4,6 @@ import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { useTheme } from "@/src/theme/ThemeContext";
@@ -88,8 +87,7 @@ export default function PlanScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}>
         {/* Workout */}
         <View style={{ height: 150, borderRadius: radius.md, overflow: "hidden", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
-          <Image source={{ uri: chosenRenderUri || GYM_IMG }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" />
-          {chosenRenderUri && blurMedia ? <BlurView intensity={55} tint="dark" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} /> : null}
+          <Image source={{ uri: chosenRenderUri || GYM_IMG }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" blurRadius={chosenRenderUri && blurMedia ? 65 : 0} />
           <LinearGradient colors={["transparent", colors.scrim, colors.bg]} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 110 }} />
           {chosenRenderUri ? (
             <Pressable testID="plan-blur-toggle" onPress={() => setBlurMedia((b) => !b)} style={{ position: "absolute", top: 10, right: 10, backgroundColor: overlay.scrim, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", gap: 6, alignItems: "center" }}>

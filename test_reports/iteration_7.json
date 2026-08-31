@@ -1,0 +1,34 @@
+{
+  "summary": "Focused re-test of iteration_7 bugs. BOTH bugs verified fixed. BUG 1 (base photo pipeline, backend) — 4/4 pytest cases in /app/backend/tests/test_bug_fixes_iter7.py pass against public URL. (a) POST /api/photo/upload returned {path, sha256} and the sha256 exactly equals hashlib.sha256(uploaded_bytes).hexdigest() (fresh JPEG uploaded during the test). (b) After POST /api/generate + polling /api/generate/{job_id}, /var/log/supervisor/backend.err.log emitted BOTH 'UPLOAD base photo user=... sha256=<X> bytes=641' AND 'RENDER base photo user=... sha256=<X> ... stored_sha=<X> match=True' for the SAME sha (1b902643c80caad16894156dd709ea988805a6c8a1f2ee35623ca664aecf272f) — proving the render job read the uploaded photo, not a stock substitute. A prior full run (00:38:52) with a valid 41KB JPEG shows the identical two-line invariant with match=True. (c) No stock-substitution code path: server.py:337-338 raises RuntimeError('Base photo bytes empty — refusing to substitute a stock image') if content is empty; static grep for stock_photo/demo_base_photo/placeholder_base/assets/stock/assets/demo returns zero hits. (d) /api/targets exposes renders {conservative, expected, stretch} each with a non-empty path. BUG 2 (blur, frontend) verified live on mobile viewport (390x844) with credentials e2e1788128321@trueform.app/Test1234!: (a) /targets — inner <img> computed style is filter: blur(65px) BY DEFAULT (real CSS gaussian blur, not a dark overlay), tapping [data-testid=targets-blur-toggle] flips filter to 'none' (sharp image visible in screenshot), tapping again returns to blur(65px). Toggle label switches Blurred↔Blur. (b) Plan tab workout header — chosen render <img src=/api/files/...> computed filter=blur(65px) by default and toggles to 'none' via [data-testid=plan-blur-toggle]. Header label switches Blurred↔Blur. (c) Progress tab ComparisonViewer — both left/right <img> computed filter='none' (NOT blurred), as intended per the exception. Visual diff between blurred/revealed states is a genuine gaussian blur (expo-image blurRadius maps to CSS filter:blur(px) on web), not merely a scrim. Prior regression suites (iter_6) also stay green.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bug_fixes_iter7.py — new pytest suite (4 cases: upload sha, upload+render log-invariant, no-stock-substitution static guard, 3-renders shape)",
+    "/app/test_reports/pytest/pytest_iteration_7.xml — JUnit XML, 4 passed / 0 failed"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:262-275 (upload_base_photo): computes sha256 on the raw bytes, persists it as base_photo_sha256, and logs 'UPLOAD base photo user=... path=... sha256=... bytes=...' — matches the bug-fix contract.",
+    "server.py:335-343 (_run_generation): after te.compute it fetches the uploaded object, refuses to substitute a stock image if empty (raises RuntimeError), re-hashes the fetched bytes and logs 'RENDER base photo user=... sha256=<X> ... stored_sha=<Y> match=<X==Y>'. This is the exact invariant asked for and it fires BEFORE the Gemini call, so the log-match assertion is independent of downstream image-gen success.",
+    "server.py:391-392: /api/generate returns 400 'Upload a base photo first' when base_photo_path is missing — closes the no-substitute loophole at request time.",
+    "frontend targets.tsx:101 uses <Image ... blurRadius={blur ? 65 : 0} /> (expo-image) so on web the resolved element gets computed style filter:blur(65px) — real gaussian blur, not a BlurView tint. Confirmed live: filter='blur(65px)' default → 'none' after toggle.",
+    "frontend plan.tsx:90 uses the same expo-image blurRadius pattern on the chosen render behind the workout header; verified live filter transitions blur(65px)↔none.",
+    "frontend progress.tsx renders ComparisonViewer whose Image children carry NO blurRadius — verified live filter='none' on both sides."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bug_fixes_iter7.py (new)",
+    "/app/test_reports/pytest/pytest_iteration_7.xml (new JUnit XML)",
+    "/app/test_reports/iteration_7.json (this file)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (targets + plan blur/reveal toggle both work; progress correctly unblurred)"},
+  "seed_data_creation": "None persistent. Test transiently re-uploaded a fresh 641-byte JPEG to drive the sha-match log invariant. The account e2e1788128321@trueform.app is otherwise reused.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/test_bug_fixes_iter7.py — it is idempotent and only reads logs + hits public endpoints. Note: the log-invariant test intentionally does NOT require job.status=='done' because Gemini rejects synthetic tiny JPEGs; the bug-fix contract is proved by the two log lines emitted BEFORE Gemini is called. For a real end-to-end 'done' pass, upload a valid ~40KB portrait JPEG. Web preview maps expo-image blurRadius to CSS filter:blur(65px) — the correct selector to prove real blur (not a dark scrim) is `window.getComputedStyle(<img>).filter`; verified as 'blur(65px)' when blurred and 'none' when revealed.",
+  "rca_of_issue": "N/A — both fixes verified. Prior iter_7 fix approach was correct: (BUG1) sha256 stamping at both upload and render + an explicit refuse-to-substitute guard; (BUG2) swap expo-blur BlurView overlay (which only tinted on web/Android) for expo-image blurRadius directly on the image (which resolves to a true CSS gaussian filter on web). Progress ComparisonViewer intentionally omits blurRadius — this is the desired exception."
+}
