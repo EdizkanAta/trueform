@@ -223,22 +223,27 @@ def build_render_prompt(stats: dict, label: str, face_strength: str = "auto") ->
     leaner = delta >= 0
     mag = abs(delta)
 
-    if mag < 3:
-        body_change = "a subtle, realistic change in body composition"
+    if mag < 4:
+        body_change = ("a subtle but clearly noticeable reduction in body fat — a slightly flatter "
+                       "abdomen and marginally tighter waist")
         face_change = ("a very subtle change to facial soft tissue — cheeks marginally slimmer, "
                        "jawline only slightly more defined")
-    elif mag < 6:
-        body_change = "a modest, realistic reduction in body fat"
-        face_change = ("a subtle change to facial soft tissue — slightly slimmer cheeks, a "
-                       "marginally more defined jawline, and a small reduction in under-chin fullness")
-    elif mag < 10:
-        body_change = "a clear, realistic reduction in body fat"
-        face_change = ("a noticeable change to facial soft tissue — visibly slimmer cheeks, a more "
+    elif mag < 8:
+        body_change = ("a clear, moderate reduction in body fat — a visibly flatter stomach, a tighter "
+                       "waistline, and the first hints of muscle definition in the chest and arms")
+        face_change = ("a moderate change to facial soft tissue — noticeably slimmer cheeks, a more "
                        "defined jawline, and reduced under-chin (submental) fullness")
+    elif mag < 12:
+        body_change = ("a substantial reduction in body fat — a clearly leaner and more athletic torso, "
+                       "a defined waist, visible chest and arm muscle tone, and the abdomen starting to flatten out")
+        face_change = ("a clear change to facial soft tissue — distinctly slimmer cheeks, a well-defined "
+                       "jawline, and minimal under-chin fullness")
     else:
-        body_change = "a substantial but still realistic reduction in body fat"
-        face_change = ("an obvious change to facial soft tissue — clearly slimmer cheeks, a sharply "
-                       "defined jawline, and minimal under-chin (submental) fullness")
+        body_change = ("a dramatic yet still realistic transformation — a lean, muscular and athletic "
+                       "physique with a tight waist, well-defined chest, shoulders and arms, and the "
+                       "beginnings of visible abdominal definition")
+        face_change = ("an obvious change to facial soft tissue — clearly slimmer, more sculpted cheeks "
+                       "and a sharply defined jawline, with no under-chin fullness")
 
     if not leaner:
         # muscle gain / recomp: the face fills out slightly rather than slimming
@@ -255,11 +260,14 @@ def build_render_prompt(stats: dict, label: str, face_strength: str = "auto") ->
         f"Edit this full-body photo of the SAME person to show {body_change}, moving from about "
         f"{current_bf}% to about {target_bf}% body fat. The FACE must change proportionally with the "
         f"body-fat change: {face_change}. "
-        "STRICT — DO NOT change any of the following: the underlying bone structure or skull/face "
-        "shape and proportions, the eyes, nose, ears, hairline, hair style, beard or facial-hair "
-        "style, skin tone, or facial expression. Also keep the exact same identity, pose, camera "
-        "angle, lighting, background, and clothing style and fit. Change ONLY body composition and "
-        "the soft-tissue fullness of the face that naturally follows it. Photorealistic, natural, "
-        "attainable, non-sexualized, true-to-life — do not idealize, beautify, or exaggerate beyond "
-        "the stated body-fat change."
+        "Also present the person at their best, WITHOUT changing who they are: give them improved, "
+        "upright posture (standing tall, shoulders back and down, chest open, core engaged), a calm and "
+        "confident facial expression, and flattering, soft, even, neutral studio-quality lighting. "
+        "STRICT — DO NOT change the person's IDENTITY: keep the exact same underlying bone structure, "
+        "skull and face shape and proportions, the eyes, nose, ears, hairline, hair style, beard or "
+        "facial-hair style, and skin tone. Keep the SAME COMPOSITION: identical camera angle, camera "
+        "distance and framing, crop, background/scene, and the same clothing style and fit. Change ONLY "
+        "body composition, the soft-tissue fullness of the face that naturally follows it, posture, "
+        "expression and lighting. Photorealistic, natural, attainable, non-sexualized, true-to-life — "
+        "do not beautify facial features or exaggerate beyond the stated body-fat change."
     )

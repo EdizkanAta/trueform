@@ -464,6 +464,8 @@ async def _run_calibration(job_id: str, user: dict, profile: dict, goal: dict):
         content, _ = await objstore.get_object(user["base_photo_path"])
         base_b64 = base64.b64encode(content).decode("utf-8")
         current_bf = result.body_fat_pct
+        current_weight = float(profile["weight_kg"])
+        lean_mass = current_weight * (1 - current_bf / 100.0)
 
         async def one(drop: int):
             target_bf = round(max(3.0, current_bf - drop), 1)
@@ -472,7 +474,11 @@ async def _run_calibration(job_id: str, user: dict, profile: dict, goal: dict):
             img_bytes = base64.b64decode(img_b64)
             path = objstore.object_path(user["id"], "png", str(uuid.uuid4()))
             await objstore.put_object(path, img_bytes, "image/png")
+            # Target weight holding lean mass constant while body fat drops.
+            target_weight_kg = round(lean_mass / (1 - target_bf / 100.0), 1)
             return drop, img_bytes, {"drop_pct": drop, "target_body_fat_pct": target_bf,
+                                     "bf_delta": drop, "target_weight_kg": target_weight_kg,
+                                     "target_weight_lb": round(target_weight_kg / 0.45359237, 1),
                                      "path": path, "qa": qa}
 
         results = await asyncio.gather(*[one(d) for d in (5, 10, 15)])
@@ -487,12 +493,14 @@ async def _run_calibration(job_id: str, user: dict, profile: dict, goal: dict):
                 pairs[f"{out_bytes[i][0]}vs{out_bytes[j][0]}"] = round(
                     change_score(out_bytes[i][1], out_bytes[j][1]), 4)
 
-        doc = {"user_id": user["id"], "current_body_fat_pct": current_bf, "renders": renders,
+        doc = {"user_id": user["id"], "current_body_fat_pct": current_bf,
+               "current_weight_kg": round(current_weight, 1), "renders": renders,
                "pairwise_distinctness": pairs, "created_at": datetime.now(timezone.utc).isoformat()}
         await db.calibrations.update_one({"user_id": user["id"]}, {"$set": doc}, upsert=True)
         all_pass = all(r["qa"].get("identity_pass") for r in renders)
         await db.calibration_jobs.update_one({"id": job_id}, {"$set": {
             "status": "done", "progress": 100, "current_body_fat_pct": current_bf,
+            "current_weight_kg": round(current_weight, 1),
             "renders": renders, "pairwise_distinctness": pairs, "identity_all_pass": all_pass}})
     except Exception as e:
         logger.exception("Calibration failed")
@@ -519,19 +527,56 @@ async def calibration_view(token: str = Query(...)):
 
     def cell(r: dict) -> str:
         url = f"/api/files/{r['path']}?token={token}"
+        is_stretch = r["drop_pct"] == max(x["drop_pct"] for x in calib["renders"])
+        border = "border:2px solid #23C4A8;" if is_stretch else "border:2px solid transparent;"
+        tag = ('<div style="display:inline-block;background:#23C4A8;color:#04110E;font:700 10px '
+               'sans-serif;letter-spacing:1px;padding:3px 8px;border-radius:999px;margin-bottom:6px">'
+               'STRETCH</div>') if is_stretch else ''
+        wt = r.get("target_weight_kg")
+        wt_lb = r.get("target_weight_lb")
+        wt_line = (f'<div style="color:#C9CDD4;font:500 12px sans-serif;margin-top:4px">'
+                   f'~{wt} kg · {wt_lb} lb</div>') if wt is not None else ''
         return (
-            '<div style="flex:1;text-align:center">'
-            f'<div style="color:#9BA0A8;font:600 12px sans-serif;letter-spacing:1.5px">'
-            f'&minus;{r["drop_pct"]}% BF &middot; ~{r["target_body_fat_pct"]}%</div>'
+            f'<div style="flex:1;text-align:center;{border}border-radius:14px;padding:8px">'
+            f'{tag}'
+            f'<div style="color:#F2F3F5;font:700 13px sans-serif;letter-spacing:1px">'
+            f'&minus;{r["drop_pct"]}% BODY FAT</div>'
+            f'<div style="color:#9BA0A8;font:600 12px sans-serif;margin-top:2px">'
+            f'~{r["target_body_fat_pct"]}% BF</div>'
+            f'{wt_line}'
             f'<img src="{url}" style="width:100%;border-radius:12px;margin-top:8px"/></div>'
         )
 
     cells = "".join(cell(r) for r in calib["renders"])
+    stretch = max(calib["renders"], key=lambda r: r["drop_pct"])
+    cur_bf = calib["current_body_fat_pct"]
+    cur_wt = calib.get("current_weight_kg")
+    stretch_panel = (
+        '<div style="background:#16181D;border:1px solid #23C4A8;border-radius:14px;'
+        'padding:16px;margin-top:20px">'
+        '<div style="color:#23C4A8;font:700 11px sans-serif;letter-spacing:1.5px">'
+        'TARGETENGINE · STRETCH TARGET</div>'
+        '<div style="display:flex;gap:24px;margin-top:10px;flex-wrap:wrap">'
+        f'<div><div style="color:#9BA0A8;font:500 11px sans-serif">Target weight</div>'
+        f'<div style="color:#F2F3F5;font:300 22px sans-serif">{stretch.get("target_weight_kg")} kg '
+        f'<span style="font-size:13px;color:#9BA0A8">/ {stretch.get("target_weight_lb")} lb</span></div></div>'
+        f'<div><div style="color:#9BA0A8;font:500 11px sans-serif">Est. body-fat delta</div>'
+        f'<div style="color:#F2F3F5;font:300 22px sans-serif">&minus;{stretch.get("bf_delta")}% '
+        f'<span style="font-size:13px;color:#9BA0A8">({cur_bf}% &rarr; {stretch.get("target_body_fat_pct")}%)</span></div></div>'
+        + (f'<div><div style="color:#9BA0A8;font:500 11px sans-serif">Est. weight change</div>'
+           f'<div style="color:#F2F3F5;font:300 22px sans-serif">&minus;{round(cur_wt - stretch.get("target_weight_kg"), 1)} kg</div></div>'
+           if cur_wt is not None else '')
+        + '</div></div>'
+    )
+    base_wt = f' &middot; ~{cur_wt} kg' if cur_wt is not None else ''
     html = (
-        '<html><body style="margin:0;background:#0E0F12;padding:16px">'
+        '<html><body style="margin:0;background:#0E0F12;padding:16px;font-family:sans-serif">'
         f'<div style="color:#F2F3F5;font:200 22px sans-serif">Calibration &middot; base at '
-        f'~{calib["current_body_fat_pct"]}% body fat</div>'
+        f'~{cur_bf}% body fat{base_wt}</div>'
+        '<div style="color:#9BA0A8;font:400 13px sans-serif;margin-top:4px">'
+        'Three distinct fat-loss levels rendered from your base photo.</div>'
         f'<div style="display:flex;gap:12px;margin-top:16px">{cells}</div>'
+        f'{stretch_panel}'
         '</body></html>'
     )
     return Response(content=html, media_type="text/html")

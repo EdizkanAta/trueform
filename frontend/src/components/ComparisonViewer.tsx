@@ -9,7 +9,6 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/src/theme/ThemeContext";
-import { Label } from "@/src/components/ui";
 
 // Side-by-side comparison with a draggable vertical divider.
 // Left = base photo (fixed), Right layer (clipped) = comparison image.
@@ -73,10 +72,14 @@ export function ComparisonViewer({
         </GestureDetector>
 
         <View style={{ position: "absolute", left: 10, bottom: 10 }}>
-          <Label>{leftLabel}</Label>
+          <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 4 }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 11, fontWeight: "700", letterSpacing: 1 }}>{leftLabel.toUpperCase()}</Text>
+          </View>
         </View>
         <View style={{ position: "absolute", right: 10, bottom: 10 }}>
-          <Label>{rightLabel}</Label>
+          <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 4 }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 11, fontWeight: "700", letterSpacing: 1 }}>{rightLabel.toUpperCase()}</Text>
+          </View>
         </View>
       </View>
     </View>

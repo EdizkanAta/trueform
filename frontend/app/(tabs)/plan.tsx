@@ -8,13 +8,26 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { useTheme } from "@/src/theme/ThemeContext";
 import { overlay } from "@/src/theme/theme";
-import { api, fileUrl, mediaUrl } from "@/src/api/client";
+import { api, mediaUrl } from "@/src/api/client";
 import { Card, Chip, Label, ListRow, Screen, Skeleton, StatReadout, MedicalDisclaimer } from "@/src/components/ui";
 import { FullBleedCard } from "@/src/components/FullBleedCard";
 import { ENV_LABELS } from "@/src/lib/format";
 
 const MEAL_IMG = "https://images.unsplash.com/photo-1547592180-85f173990554?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwbWVhbCUyMHByZXAlMjBmb29kJTIwbmV1dHJhbCUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzg4MTI2NTEyfDA&ixlib=rb-4.1.0&q=85";
-const GYM_IMG = "https://images.unsplash.com/photo-1576678927484-cc907957088c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHxneW0lMjBlcXVpcG1lbnQlMjBkdW1iYmVsbHMlMjBkYXJrJTIwbmV1dHJhbCUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzg4MTI2NTEyfDA&ixlib=rb-4.1.0&q=85";
+
+// Stock workout imagery keyed by the day's focus (Pexels, free to use).
+const PX = (id: number) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1000`;
+const WORKOUT_IMAGES: Record<string, string> = {
+  "Upper Body": PX(34100808),          // bench press / chest
+  "Lower Body": PX(9602276),           // barbell squat
+  "Push & Pull": PX(29084397),         // pull-ups
+  "Lower & Conditioning": PX(27898326),// dumbbell squats
+  "Full Body": PX(4162451),            // gym floor
+  "Recovery": PX(4056723),             // stretching / mobility
+};
+const DEFAULT_WORKOUT_IMG = PX(4162451);
+const workoutImageFor = (day: any): string =>
+  day?.type === "recovery" ? WORKOUT_IMAGES["Recovery"] : (WORKOUT_IMAGES[day?.focus] || DEFAULT_WORKOUT_IMG);
 
 const DAY_ABBR: Record<string, string> = { Monday: "Mon", Tuesday: "Tue", Wednesday: "Wed", Thursday: "Thu", Friday: "Fri", Saturday: "Sat", Sunday: "Sun" };
 const ENVS = ["gym", "home_equipment", "home_no_equipment"];
@@ -26,7 +39,6 @@ export default function PlanScreen() {
   const [dayIdx, setDayIdx] = useState(0);
   const [envOverride, setEnvOverride] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [blurMedia, setBlurMedia] = useState(true);
   const [selEx, setSelEx] = useState<any>(null);
 
   const load = useCallback(async (env?: string | null) => {
@@ -49,7 +61,7 @@ export default function PlanScreen() {
 
   const day = plan.days[dayIdx];
   const currentEnv = envOverride || day?.environment;
-  const chosenRenderUri = fileUrl(plan.chosen_render_path);
+  const workoutImg = workoutImageFor(day);
 
   return (
     <Screen>
@@ -87,14 +99,8 @@ export default function PlanScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}>
         {/* Workout */}
         <View style={{ height: 150, borderRadius: radius.md, overflow: "hidden", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
-          <Image source={{ uri: chosenRenderUri || GYM_IMG }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" blurRadius={chosenRenderUri && blurMedia ? 65 : 0} />
+          <Image source={{ uri: workoutImg }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" />
           <LinearGradient colors={["transparent", colors.scrim, colors.bg]} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 110 }} />
-          {chosenRenderUri ? (
-            <Pressable testID="plan-blur-toggle" onPress={() => setBlurMedia((b) => !b)} style={{ position: "absolute", top: 10, right: 10, backgroundColor: overlay.scrim, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", gap: 6, alignItems: "center" }}>
-              <Feather name={blurMedia ? "eye-off" : "eye"} size={14} color={overlay.onImage} />
-              <Text style={{ color: overlay.onImage, fontSize: font.size.xs }}>{blurMedia ? "Blurred" : "Blur"}</Text>
-            </Pressable>
-          ) : null}
           <View style={{ position: "absolute", left: spacing.md, bottom: spacing.md }}>
             <Text style={{ color: colors.textPrimary, fontSize: font.size.lg, fontWeight: "600" }}>{day.type === "recovery" ? "Recovery Day" : `Workout · ${day.focus}`}</Text>
             <Text style={{ color: colors.textSecondary, fontSize: font.size.sm }}>{ENV_LABELS[currentEnv] || currentEnv}</Text>
