@@ -76,6 +76,16 @@ clinical, data-forward "lab instrument" design. Provider-agnostic AI behind one 
   Progress comparison exempt. DONE.
 - Item 7 close-out: grep zero; MVP acceptance checklist reported to user.
 
+## Exercise media — ExerciseDB (2026-06)
+- MEDIA_PROVIDER=exercisedb (backend/.env). RAPIDAPI_KEY set (RapidAPI acct subscribed to ExerciseDB).
+- Live ExerciseDB API no longer returns `gifUrl`; GIFs come from an authenticated /image
+  endpoint. ExerciseDBMediaProvider.enrich now stores demo_url=`/api/exercise-media/{id}`.
+- New backend proxy `GET /api/exercise-media/{id}` fetches the GIF server-side with the key and
+  streams it (Cache-Control 1d) so the key never reaches the client. Frontend `mediaUrl()` in
+  api/client.ts prefixes relative media paths with the backend base; plan.tsx uses it.
+- Re-seeded: 20/22 exercises mapped to ExerciseDB ids; verified GIFs render live on Plan tab.
+- Pulled from GitHub EdizkanAta/trueform main (merged origin ExerciseDBMediaProvider + tests/reports).
+
 ## Backlog / remaining (P-levels)
 - P0 (Phase 2 gate): none blocking MVP.
 - P1: SSE streaming coach; text-model-authored render prompts; DOB native picker; auth rate limiting.
