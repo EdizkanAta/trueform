@@ -13,6 +13,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Dict, List, Optional
 
+import requests
 from dotenv import load_dotenv
 from fastapi import (APIRouter, Depends, FastAPI, File, HTTPException, Query,
                      UploadFile, status)
@@ -300,6 +301,31 @@ async def serve_file(path: str, token: Optional[str] = Query(None)):
         raise HTTPException(404, "Not found")
     return Response(content=content, media_type=ctype)
 
+
+@api.get("/exercise-media/{exercise_id}")
+async def exercise_media(exercise_id: str, resolution: str = Query("180")):
+    """Server-side proxy for ExerciseDB demo GIFs. The live ExerciseDB API only
+    serves media from an authenticated /image endpoint, so we fetch it here with
+    the RAPIDAPI_KEY (kept server-side) and stream the GIF to the client."""
+    key = os.environ.get("RAPIDAPI_KEY", "")
+    if not key:
+        raise HTTPException(404, "Media unavailable")
+    try:
+        r = requests.get(
+            "https://exercisedb.p.rapidapi.com/image",
+            headers={"X-RapidAPI-Key": key, "X-RapidAPI-Host": "exercisedb.p.rapidapi.com"},
+            params={"exerciseId": exercise_id, "resolution": resolution},
+            timeout=12,
+        )
+    except requests.RequestException:
+        raise HTTPException(502, "Upstream media error")
+    if not r.ok:
+        raise HTTPException(404, "Media unavailable")
+    return Response(
+        content=r.content,
+        media_type=r.headers.get("content-type", "image/gif"),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 # --------------------------------------------------------------------------- #
 # Generate future-self renders (background job + polling)

@@ -34,6 +34,15 @@ export function fileUrl(path?: string | null): string | undefined {
   return `${API}/files/${path}${t}`;
 }
 
+// Resolve exercise media URLs. wger returns absolute https URLs; ExerciseDB
+// returns a relative backend-proxy path (/api/exercise-media/{id}) that must be
+// prefixed with the backend base so native/web <Image> can load it.
+export function mediaUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith("http")) return url;
+  return `${BASE}${url}`;
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = await loadToken();
   const res = await fetch(`${API}${path}`, {

@@ -8,7 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { useTheme } from "@/src/theme/ThemeContext";
 import { overlay } from "@/src/theme/theme";
-import { api, fileUrl } from "@/src/api/client";
+import { api, fileUrl, mediaUrl } from "@/src/api/client";
 import { Card, Chip, Label, ListRow, Screen, Skeleton, StatReadout, MedicalDisclaimer } from "@/src/components/ui";
 import { FullBleedCard } from "@/src/components/FullBleedCard";
 import { ENV_LABELS } from "@/src/lib/format";
@@ -109,7 +109,7 @@ export default function PlanScreen() {
             day.workout.map((ex: any, i: number) => (
               <Pressable key={ex.slug + i} testID={`plan-ex-${ex.slug}`} onPress={() => setSelEx(ex)} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: spacing.sm, borderBottomWidth: i < day.workout.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
                 {ex.media?.demo_url || ex.poster_image_url ? (
-                  <Image source={{ uri: ex.poster_image_url || ex.media.demo_url }} style={{ width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
+                  <Image source={{ uri: mediaUrl(ex.poster_image_url || ex.media?.demo_url) }} style={{ width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
                 ) : (
                   <View style={{ width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" }}>
                     <Feather name="activity" size={20} color={colors.textTertiary} />
@@ -176,7 +176,7 @@ export default function PlanScreen() {
                   <Feather name="x" size={24} color={colors.textSecondary} onPress={() => setSelEx(null)} />
                 </View>
                 {selEx.poster_image_url || selEx.media?.demo_url ? (
-                  <Image source={{ uri: selEx.poster_image_url || selEx.media.demo_url }} style={{ width: "100%", height: 200, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
+                  <Image source={{ uri: mediaUrl(selEx.poster_image_url || selEx.media?.demo_url) }} style={{ width: "100%", height: 200, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
                 ) : (
                   <View testID="plan-ex-poster-placeholder" style={{ height: 160, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" }}>
                     <Feather name="activity" size={30} color={colors.textTertiary} />

@@ -248,12 +248,16 @@ class ExerciseDBMediaProvider(MediaProvider):
         if not match or score < self.MATCH_THRESHOLD:
             return self._unmapped("No confident ExerciseDB match — showing placeholder.")
 
-        gif_url = match.get("gifUrl")
-        if not gif_url:
-            return self._unmapped("ExerciseDB match had no demo GIF — showing placeholder.")
+        # The live ExerciseDB API no longer returns a public `gifUrl`; the demo
+        # GIF is served from an authenticated /image endpoint (needs RAPIDAPI_KEY
+        # in headers). We reference it by id via our own backend proxy route
+        # (/api/exercise-media/{id}) so the key never reaches the client.
+        exercise_id = match.get("id")
+        if not exercise_id:
+            return self._unmapped("ExerciseDB match had no id — showing placeholder.")
 
         return {
-            "demo_url": gif_url,
+            "demo_url": f"/api/exercise-media/{exercise_id}",
             "source": "exercisedb.p.rapidapi.com",
             "license": self.license,
             "attribution": f"ExerciseDB id={match.get('id')} \"{match.get('name')}\" via RapidAPI",
