@@ -37,6 +37,7 @@ export default function Onboarding() {
   const [medications, setMedications] = useState("");
   const [dietHistory, setDietHistory] = useState("");
   const [direction, setDirection] = useState<"lose" | "gain" | "recomp">("lose");
+  const [goalMode, setGoalMode] = useState<"auto" | "custom">("auto");
   const [desiredWeight, setDesiredWeight] = useState("");
   const [timeline, setTimeline] = useState(16);
   const [motivation, setMotivation] = useState("health");
@@ -57,7 +58,7 @@ export default function Onboarding() {
         training_environment: env, home_equipment: env === "home_equipment" ? equipment : [],
         conditions, medications_text: medications, injuries_text: injuries,
         diet_history: dietHistory ? [{ text: dietHistory }] : [], motivation,
-        direction, desired_weight_kg: desiredWeight ? Number(desiredWeight) : null,
+        direction, desired_weight_kg: (goalMode === "custom" && desiredWeight) ? Number(desiredWeight) : null,
         timeline_weeks: timeline, same_place_every_workout: samePlace,
         environment_schedule: samePlace ? {} : schedule,
       });
@@ -151,7 +152,28 @@ export default function Onboarding() {
             <OptionGroup label="Goal direction" testIDPrefix="ob-direction" value={direction} onChange={setDirection}
               options={[{ value: "lose", label: "Lose fat" }, { value: "gain", label: "Gain muscle" }, { value: "recomp", label: "Recomp" }]} />
             {direction !== "recomp" && (
-              <TextField testID="ob-desired" label="Desired weight (kg, optional)" value={desiredWeight} onChangeText={setDesiredWeight} placeholder="e.g. 74" keyboardType="numeric" />
+              <View style={{ gap: spacing.sm }}>
+                <OptionGroup label="Target weight" testIDPrefix="ob-goalmode" value={goalMode}
+                  onChange={(v: "auto" | "custom") => setGoalMode(v)}
+                  options={[
+                    { value: "auto", label: "Show me what's possible" },
+                    { value: "custom", label: "I have a target" },
+                  ]} />
+                {goalMode === "auto" ? (
+                  <Text style={{ color: colors.textTertiary, fontSize: font.size.xs, lineHeight: 18 }}>
+                    Recommended. TrueForm will compute the full attainable range for your body and
+                    timeline — the stretch target is your safe maximum, not a number you guess.
+                  </Text>
+                ) : (
+                  <>
+                    <TextField testID="ob-desired" label="Desired weight (kg)" value={desiredWeight} onChangeText={setDesiredWeight} placeholder="e.g. 74" keyboardType="numeric" />
+                    <Text style={{ color: colors.textTertiary, fontSize: font.size.xs, lineHeight: 18 }}>
+                      We’ll show your target as a marker within the attainable range — and tell you
+                      if you could safely aim further.
+                    </Text>
+                  </>
+                )}
+              </View>
             )}
             <View>
               <Label>Timeline</Label>

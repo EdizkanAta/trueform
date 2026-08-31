@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -35,6 +35,7 @@ const ENVS = ["gym", "home_equipment", "home_no_equipment"];
 export default function PlanScreen() {
   const { colors, spacing, font, radius } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [plan, setPlan] = useState<any>(null);
   const [dayIdx, setDayIdx] = useState(0);
   const [envOverride, setEnvOverride] = useState<string | null>(null);
@@ -68,10 +69,13 @@ export default function PlanScreen() {
       {/* Sticky header */}
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: spacing.sm }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <View>
-            <Label>Your plan · {plan.chosen_target}</Label>
-            <Text style={{ color: colors.textPrimary, fontSize: font.size.xl, fontWeight: "200" }}>{day.focus}</Text>
-          </View>
+          <Pressable testID="plan-manage-goal" onPress={() => router.push("/(tabs)/profile")} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View>
+              <Label>Your plan · {plan.chosen_target}</Label>
+              <Text style={{ color: colors.textPrimary, fontSize: font.size.xl, fontWeight: "200" }}>{day.focus}</Text>
+            </View>
+            <Feather name="sliders" size={15} color={colors.accentTeal} />
+          </Pressable>
           <StatReadout value={plan.daily_kcal} unit="kcal" label="daily target" align="center" size={font.size["2xl"]} />
         </View>
 

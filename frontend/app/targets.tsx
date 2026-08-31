@@ -17,6 +17,8 @@ type Render = { path: string; weight_kg: number; weight_lb: number; body_fat_pct
 type Targets = {
   base_photo_path: string;
   renders: Record<string, Render>;
+  optimum_note?: string | null;
+  goal?: { direction: string; desired_weight_kg: number | null; timeline_weeks: number };
   engine: { reasoning: string; exceeds_stretch: boolean; realistic_timeline_weeks: number | null; condition_notes: string[] };
 };
 
@@ -85,6 +87,14 @@ export default function TargetsScreen() {
           <Text style={{ color: colors.textSecondary, fontSize: font.size.sm, marginTop: 4 }}>
             Same you — face, pose, skin, hair, clothing. Only body composition changes.
           </Text>
+          {data.goal?.desired_weight_kg ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.sm }}>
+              <Feather name="flag" size={13} color={colors.accentBlue} />
+              <Text style={{ color: colors.accentBlue, fontSize: font.size.xs }}>
+                Your goal marker: {kgToDisplay(data.goal.desired_weight_kg, user?.unit_preference || "metric").value} {kgToDisplay(data.goal.desired_weight_kg, user?.unit_preference || "metric").unit}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}
@@ -143,11 +153,34 @@ export default function TargetsScreen() {
             <Text style={{ color: colors.textSecondary, fontSize: font.size.sm, lineHeight: 20 }}>{data.engine.reasoning}</Text>
           </Card>
 
+          {data.optimum_note ? (
+            <Card testID="optimum-note" style={{ borderColor: colors.accentTeal }}>
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                <Feather name="trending-up" size={16} color={colors.accentTeal} />
+                <Label>You could aim higher</Label>
+              </View>
+              <Text style={{ color: colors.textSecondary, fontSize: font.size.sm, lineHeight: 20 }}>{data.optimum_note}</Text>
+            </Card>
+          ) : null}
+
+          <Pressable testID="targets-optimum" onPress={() => router.push("/optimum")}>
+            <Card style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", gap: 10, alignItems: "center", flex: 1 }}>
+                <Feather name="zap" size={18} color={colors.accentBlue} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: font.size.md, fontWeight: "600" }}>What’s my best case?</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: font.size.xs, marginTop: 2 }}>See your safe maximum at 16, 26 &amp; 39 weeks</Text>
+                </View>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.textTertiary} />
+            </Card>
+          </Pressable>
+
           {data.engine.exceeds_stretch && data.engine.realistic_timeline_weeks ? (
             <Card style={{ borderColor: colors.warning }}>
               <Text style={{ color: colors.warning, fontWeight: "600", marginBottom: 4 }}>Your target is beyond a safe pace</Text>
               <Text style={{ color: colors.textSecondary, fontSize: font.size.sm, lineHeight: 20 }}>
-                To reach it safely you'd need about {data.engine.realistic_timeline_weeks} weeks. We've
+                To reach it safely you’d need about {data.engine.realistic_timeline_weeks} weeks. We’ve
                 capped these estimates at the healthy maximum for your chosen timeline.
               </Text>
             </Card>

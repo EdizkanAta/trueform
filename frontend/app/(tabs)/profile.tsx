@@ -10,6 +10,7 @@ import { useAuth } from "@/src/context/AuthContext";
 import { api } from "@/src/api/client";
 import { Card, Chip, Label, OutlineButton, Screen, MedicalDisclaimer } from "@/src/components/ui";
 import { OptionGroup } from "@/src/components/form";
+import { MyGoalSection } from "@/src/components/MyGoalSection";
 
 const TIMES = ["07:00", "08:00", "12:00", "18:00", "20:00"];
 
@@ -67,6 +68,9 @@ export default function ProfileScreen() {
         <Text style={{ color: colors.textTertiary, fontSize: font.size.sm, marginTop: 2 }}>
           {user.sex} · target: {user.chosen_target || "not chosen"}
         </Text>
+
+        {/* My Goal */}
+        {user.onboarded ? <MyGoalSection /> : null}
 
         {/* Appearance */}
         <View style={{ marginTop: spacing.lg }}>

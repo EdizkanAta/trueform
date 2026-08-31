@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Text, View, ScrollView } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
@@ -16,6 +16,7 @@ export default function Generating() {
   const { colors, spacing, font } = useTheme();
   const insets = useSafeAreaInsets();
   const { refresh, user } = useAuth();
+  const { job } = useLocalSearchParams<{ job?: string }>();
 
   const [progress, setProgress] = useState(5);
   const [status, setStatus] = useState<"running" | "error" | "done">("running");
@@ -25,6 +26,8 @@ export default function Generating() {
 
   const start = async () => {
     setStatus("running"); setError(null); setBlocked(null); setProgress(5);
+    // Goal edit / regeneration: a job was already started by the backend.
+    if (job) { poll(job); return; }
     // If targets already exist, skip straight through.
     if (user?.has_targets) { router.replace("/targets"); return; }
     try {
@@ -131,7 +134,7 @@ export default function Generating() {
             <Text testID="generating-error" style={{ color: colors.textSecondary, lineHeight: 20 }}>
               {error}. Your photo and inputs are saved — you can retry now.
             </Text>
-            <GradientButton testID="generating-retry" label="Retry render" icon="refresh-cw" onPress={start} />
+            <GradientButton testID="generating-retry" label="Retry render" icon="refresh-cw" onPress={() => { pollRef.current && clearInterval(pollRef.current); (async () => { setStatus("running"); setError(null); setProgress(5); try { const res = await api.post<{ job_id: string }>("/generate"); poll(res.job_id); } catch (e: any) { setStatus("error"); setError(e?.detail || e?.message || "Could not start generation"); } })(); }} />
           </View>
         )}
       </View>

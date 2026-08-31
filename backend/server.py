@@ -101,6 +101,13 @@ class ChooseTargetIn(BaseModel):
     label: str
 
 
+class GoalUpdateIn(BaseModel):
+    direction: Optional[str] = None
+    desired_weight_kg: Optional[float] = None
+    timeline_weeks: Optional[int] = None
+    clear_desired_weight: bool = False
+
+
 class LogIn(BaseModel):
     date: str
     weight_kg: Optional[float] = None
@@ -241,13 +248,21 @@ async def save_profile(data: ProfileIn, user: dict = Depends(get_current_user)):
         schedule.setdefault("default", data.training_environment)
 
     goal = {
-        "user_id": user["id"], "direction": data.direction,
+        "id": str(uuid.uuid4()), "user_id": user["id"], "active": True,
+        "direction": data.direction,
         "desired_weight_kg": data.desired_weight_kg, "timeline_weeks": data.timeline_weeks,
         "environment_schedule": schedule, "environment_transition": data.environment_transition,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "ended_at": None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    await db.goals.update_one({"user_id": user["id"]}, {"$set": goal}, upsert=True)
-    await db.users.update_one({"id": user["id"]}, {"$set": {"onboarded": True}})
+    # First-time onboarding: replace any prior active goal for this user.
+    await db.goals.update_one({"user_id": user["id"], "active": True},
+                              {"$set": {"active": False,
+                                        "ended_at": datetime.now(timezone.utc).isoformat()}})
+    await db.goals.insert_one(dict(goal))
+    await db.users.update_one({"id": user["id"]},
+                              {"$set": {"onboarded": True, "active_goal_id": goal["id"]}})
     blocked = _is_blocked(user)
     return {"ok": True, "blocked": blocked}
 
@@ -330,6 +345,56 @@ async def exercise_media(exercise_id: str, resolution: str = Query("180")):
 # --------------------------------------------------------------------------- #
 # Generate future-self renders (background job + polling)
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# Versioned goals — one active goal per user; old goals + their renders/plans
+# are archived (never overwritten). Progress logs/photos are stamped with the
+# goal that was active when recorded.
+# --------------------------------------------------------------------------- #
+async def _active_goal(user_id: str) -> Optional[dict]:
+    g = await db.goals.find_one({"user_id": user_id, "active": True})
+    return g or await db.goals.find_one({"user_id": user_id})
+
+
+async def _current_fss(user_id: str) -> Optional[dict]:
+    g = await _active_goal(user_id)
+    if not g:
+        return None
+    if g.get("id"):
+        fss = await db.future_self_sets.find_one({"goal_id": g["id"]})
+        if fss:
+            return fss
+    return await db.future_self_sets.find_one({"user_id": user_id})
+
+
+async def _current_plan_doc(user_id: str) -> Optional[dict]:
+    g = await _active_goal(user_id)
+    if not g:
+        return None
+    if g.get("id"):
+        p = await db.plans.find_one({"goal_id": g["id"]})
+        if p:
+            return p
+    return await db.plans.find_one({"user_id": user_id})
+
+
+async def _migrate_goal_versioning():
+    """Backfill versioning fields on legacy single-goal docs (idempotent)."""
+    async for g in db.goals.find({"id": {"$exists": False}}):
+        gid = str(uuid.uuid4())
+        uid = g["user_id"]
+        await db.goals.update_one({"_id": g["_id"]}, {"$set": {
+            "id": gid, "active": True,
+            "started_at": g.get("created_at") or datetime.now(timezone.utc).isoformat(),
+            "ended_at": None}})
+        await db.users.update_one({"id": uid}, {"$set": {"active_goal_id": gid}})
+        await db.future_self_sets.update_many({"user_id": uid}, {"$set": {"goal_id": gid}})
+        await db.plans.update_many({"user_id": uid}, {"$set": {"goal_id": gid}})
+        await db.daily_logs.update_many(
+            {"user_id": uid, "goal_id": {"$exists": False}}, {"$set": {"goal_id": gid}})
+        await db.progress_photos.update_many(
+            {"user_id": uid, "goal_id": {"$exists": False}}, {"$set": {"goal_id": gid}})
+
+
 def _engine_input(user: dict, profile: dict, goal: dict) -> te.EngineInput:
     return te.EngineInput(
         sex=user["sex"], age=calculate_age(date.fromisoformat(user["dob"])),
@@ -395,11 +460,11 @@ async def _run_generation(job_id: str, user: dict, profile: dict, goal: dict):
         await db.jobs.update_one({"id": job_id}, {"$set": {"progress": 95}})
 
         fss = {
-            "id": str(uuid.uuid4()), "user_id": user["id"], "goal_id": goal["user_id"],
+            "id": str(uuid.uuid4()), "user_id": user["id"], "goal_id": goal["id"],
             "base_photo_path": user["base_photo_path"], "renders": renders,
             "engine": result_d, "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        await db.future_self_sets.update_one({"user_id": user["id"]}, {"$set": fss}, upsert=True)
+        await db.future_self_sets.update_one({"goal_id": goal["id"]}, {"$set": fss}, upsert=True)
         await db.users.update_one({"id": user["id"]}, {"$set": {"has_targets": True}})
         await db.jobs.update_one({"id": job_id},
                                  {"$set": {"status": "done", "progress": 100}})
@@ -417,7 +482,7 @@ async def generate(user: dict = Depends(get_current_user)):
     if not user.get("base_photo_path"):
         raise HTTPException(400, "Upload a base photo first")
     profile = await db.health_profiles.find_one({"user_id": user["id"]})
-    goal = await db.goals.find_one({"user_id": user["id"]})
+    goal = await _active_goal(user["id"])
     if not profile or not goal:
         raise HTTPException(400, "Complete onboarding first")
     job = {"id": str(uuid.uuid4()), "user_id": user["id"], "status": "running",
@@ -435,7 +500,7 @@ async def generate_status(job_id: str, user: dict = Depends(get_current_user)):
     out = {"job_id": job_id, "status": job["status"], "progress": job.get("progress", 0),
            "error": job.get("error")}
     if job["status"] == "done":
-        fss = await db.future_self_sets.find_one({"user_id": user["id"]})
+        fss = await _current_fss(user["id"])
         out["future_self_set"] = _clean(fss) if fss else None
     return out
 
@@ -448,7 +513,7 @@ async def calibration(user: dict = Depends(get_current_user)):
     if not user.get("base_photo_path"):
         raise HTTPException(400, "Upload a base photo first")
     profile = await db.health_profiles.find_one({"user_id": user["id"]})
-    goal = await db.goals.find_one({"user_id": user["id"]})
+    goal = await _active_goal(user["id"])
     if not profile or not goal:
         raise HTTPException(400, "Complete onboarding first")
     job = {"id": str(uuid.uuid4()), "user_id": user["id"], "status": "running",
@@ -587,15 +652,41 @@ async def calibration_view(token: str = Query(...)):
 # --------------------------------------------------------------------------- #
 @api.get("/targets")
 async def get_targets(user: dict = Depends(get_current_user)):
-    fss = await db.future_self_sets.find_one({"user_id": user["id"]})
+    fss = await _current_fss(user["id"])
     if not fss:
         raise HTTPException(404, "No targets yet")
-    return _clean(fss)
+    out = _clean(fss)
+    goal = await _active_goal(user["id"])
+    profile = await db.health_profiles.find_one({"user_id": user["id"]})
+    desired = (goal or {}).get("desired_weight_kg")
+    out["goal"] = {
+        "direction": (goal or {}).get("direction"),
+        "desired_weight_kg": desired,
+        "timeline_weeks": (goal or {}).get("timeline_weeks"),
+    }
+    out["chosen_target"] = user.get("chosen_target")
+    # Optimum-vs-goal messaging: is the user's own goal more modest than what's possible?
+    note = None
+    try:
+        targets = out["engine"]["targets"]
+        stretch = next(t for t in targets if t["label"] == "stretch")
+        if desired and profile and (goal or {}).get("direction") != "recomp":
+            cur_w = profile["weight_kg"]
+            stretch_delta = abs(stretch["weight_kg"] - cur_w)
+            desired_delta = abs(desired - cur_w)
+            if desired_delta < stretch_delta - 0.3:
+                note = (f"Your goal is {desired} kg, but for your body and timeline you could "
+                        f"realistically reach about {stretch['weight_kg']} kg "
+                        f"(~{stretch['body_fat_pct']}% body fat). Aim higher if you want.")
+    except (KeyError, StopIteration):
+        pass
+    out["optimum_note"] = note
+    return out
 
 
 async def _build_and_save_plan(user: dict, env_schedule_override: Optional[Dict[str, str]] = None):
     profile = _clean(await db.health_profiles.find_one({"user_id": user["id"]}))
-    goal = _clean(await db.goals.find_one({"user_id": user["id"]}))
+    goal = _clean(await _active_goal(user["id"]))
     result = te.compute(_engine_input(user, profile, goal))
     exercises = [_clean(e) async for e in db.exercises.find({})]
     recipes = [_clean(r) async for r in db.recipes.find({})]
@@ -610,12 +701,12 @@ async def choose_target(data: ChooseTargetIn, user: dict = Depends(get_current_u
     if data.label not in ("conservative", "expected", "stretch"):
         raise HTTPException(400, "Invalid target label")
     plan, profile, goal = await _build_and_save_plan(user)
-    plan_doc = {"id": str(uuid.uuid4()), "user_id": user["id"], "goal_id": user["id"],
+    plan_doc = {"id": str(uuid.uuid4()), "user_id": user["id"], "goal_id": goal["id"],
                 "chosen_target": data.label, **plan,
                 "environment_schedule": goal.get("environment_schedule"),
                 "environment_transition": goal.get("environment_transition"),
                 "created_at": datetime.now(timezone.utc).isoformat()}
-    await db.plans.update_one({"user_id": user["id"]}, {"$set": plan_doc}, upsert=True)
+    await db.plans.update_one({"goal_id": goal["id"]}, {"$set": plan_doc}, upsert=True)
     await db.users.update_one({"id": user["id"]},
                               {"$set": {"chosen_target": data.label, "has_plan": True}})
     return {"ok": True, "chosen_target": data.label}
@@ -624,12 +715,12 @@ async def choose_target(data: ChooseTargetIn, user: dict = Depends(get_current_u
 @api.get("/plan")
 async def get_plan(environment: Optional[str] = Query(None),
                    user: dict = Depends(get_current_user)):
-    plan = await db.plans.find_one({"user_id": user["id"]})
+    plan = await _current_plan_doc(user["id"])
     if not plan:
         raise HTTPException(404, "No plan yet")
     # chosen future-self render (for the workout day header cards)
     chosen_render_path = None
-    fss = await db.future_self_sets.find_one({"user_id": user["id"]})
+    fss = await _current_fss(user["id"])
     if fss and user.get("chosen_target"):
         chosen_render_path = (fss.get("renders", {}).get(user["chosen_target"]) or {}).get("path")
     if environment:  # context switch (e.g. traveling) — rebuild, don't persist
@@ -675,6 +766,8 @@ def _streak(logs: List[dict]) -> int:
 async def upsert_log(data: LogIn, user: dict = Depends(get_current_user)):
     doc = data.model_dump()
     doc["user_id"] = user["id"]
+    goal = await _active_goal(user["id"])
+    doc["goal_id"] = (goal or {}).get("id")
     doc["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.daily_logs.update_one({"user_id": user["id"], "date": data.date},
                                    {"$set": doc}, upsert=True)
@@ -694,14 +787,14 @@ async def list_logs(user: dict = Depends(get_current_user)):
 
 @api.get("/today")
 async def today(user: dict = Depends(get_current_user)):
-    plan = await db.plans.find_one({"user_id": user["id"]})
+    plan = await _current_plan_doc(user["id"])
     logs = [_clean(l) async for l in db.daily_logs.find({"user_id": user["id"]})]
     weekday = date.today().strftime("%A")
     day_plan = None
     if plan:
         day_plan = next((d for d in plan["days"] if d["day"] == weekday), plan["days"][0])
     log_today = next((l for l in logs if l["date"] == _today_str()), None)
-    goal = await db.goals.find_one({"user_id": user["id"]})
+    goal = await _active_goal(user["id"])
     next_milestone = None
     if goal:
         created = datetime.fromisoformat(goal["created_at"]).date()
@@ -723,8 +816,8 @@ async def today(user: dict = Depends(get_current_user)):
 # --------------------------------------------------------------------------- #
 async def _coach_system_prompt(user: dict) -> str:
     profile = _clean(await db.health_profiles.find_one({"user_id": user["id"]})) or {}
-    goal = _clean(await db.goals.find_one({"user_id": user["id"]})) or {}
-    plan = await db.plans.find_one({"user_id": user["id"]})
+    goal = _clean(await _active_goal(user["id"])) or {}
+    plan = await _current_plan_doc(user["id"])
     logs = [_clean(l) async for l in db.daily_logs.find({"user_id": user["id"]}).sort("date", -1).limit(7)]
     plan_summary = ""
     if plan:
@@ -784,7 +877,9 @@ async def upload_progress_photo(file: UploadFile = File(...), user: dict = Depen
     uid = str(uuid.uuid4())
     path = objstore.object_path(user["id"], ext, uid)
     await objstore.put_object(path, data, file.content_type or "image/jpeg")
+    goal = await _active_goal(user["id"])
     doc = {"id": str(uuid.uuid4()), "user_id": user["id"], "date": _today_str(),
+           "goal_id": (goal or {}).get("id"),
            "path": path, "aligned_to_base": False,
            "created_at": datetime.now(timezone.utc).isoformat(), "deleted_at": None}
     await db.progress_photos.insert_one(dict(doc))
@@ -798,7 +893,7 @@ async def progress(user: dict = Depends(get_current_user)):
     logs = [_clean(l) async for l in db.daily_logs.find({"user_id": user["id"]}).sort("date", 1)]
     weight_series = [{"date": l["date"], "weight_kg": l["weight_kg"]}
                      for l in logs if l.get("weight_kg") is not None]
-    fss = await db.future_self_sets.find_one({"user_id": user["id"]})
+    fss = await _current_fss(user["id"])
     chosen = user.get("chosen_target")
     chosen_render = None
     if fss and chosen:
@@ -813,6 +908,153 @@ async def progress(user: dict = Depends(get_current_user)):
 # --------------------------------------------------------------------------- #
 # Settings / account
 # --------------------------------------------------------------------------- #
+@api.get("/goal")
+async def get_goal(user: dict = Depends(get_current_user)):
+    goal = await _active_goal(user["id"])
+    if not goal:
+        raise HTTPException(404, "No goal yet")
+    history_count = await db.goals.count_documents({"user_id": user["id"], "active": False})
+    return {
+        "goal": _clean(goal),
+        "chosen_target": user.get("chosen_target"),
+        "has_targets": user.get("has_targets", False),
+        "has_plan": user.get("has_plan", False),
+        "archived_goals": history_count,
+    }
+
+
+@api.patch("/goal")
+async def update_goal(data: GoalUpdateIn, user: dict = Depends(get_current_user)):
+    """Change direction / timeline / goal weight. Archives the current goal
+    (with its renders + plan intact) and starts a fresh render+plan generation."""
+    if not user.get("base_photo_path"):
+        raise HTTPException(400, "Upload a base photo first")
+    current = await _active_goal(user["id"])
+    profile = await db.health_profiles.find_one({"user_id": user["id"]})
+    if not current or not profile:
+        raise HTTPException(400, "Complete onboarding first")
+
+    direction = data.direction or current["direction"]
+    if direction not in ("lose", "gain", "recomp"):
+        raise HTTPException(400, "Invalid direction")
+    timeline = data.timeline_weeks or current.get("timeline_weeks", 16)
+    if data.clear_desired_weight:
+        desired = None
+    elif data.desired_weight_kg is not None:
+        desired = data.desired_weight_kg
+    else:
+        desired = current.get("desired_weight_kg")
+
+    now = datetime.now(timezone.utc).isoformat()
+    # Archive current goal (its fss + plan remain keyed by its goal_id).
+    await db.goals.update_one({"id": current["id"]},
+                              {"$set": {"active": False, "ended_at": now}})
+    new_goal = {
+        "id": str(uuid.uuid4()), "user_id": user["id"], "active": True,
+        "direction": direction, "desired_weight_kg": desired, "timeline_weeks": timeline,
+        "environment_schedule": current.get("environment_schedule", {"default": "gym"}),
+        "environment_transition": current.get("environment_transition"),
+        "started_at": now, "ended_at": None, "created_at": now,
+    }
+    await db.goals.insert_one(dict(new_goal))
+    await db.users.update_one({"id": user["id"]}, {"$set": {
+        "active_goal_id": new_goal["id"], "chosen_target": None,
+        "has_targets": False, "has_plan": False}})
+
+    job = {"id": str(uuid.uuid4()), "user_id": user["id"], "status": "running",
+           "progress": 5, "error": None, "created_at": now}
+    await db.jobs.insert_one(job)
+    fresh_user = await db.users.find_one({"id": user["id"]})
+    asyncio.create_task(_run_generation(job["id"], _clean(fresh_user),
+                                        _clean(profile), _clean(new_goal)))
+    return {"ok": True, "job_id": job["id"], "goal_id": new_goal["id"]}
+
+
+# --------------------------------------------------------------------------- #
+# Optimum preview — engine max-safe (stretch) outcome across timelines.
+# --------------------------------------------------------------------------- #
+OPTIMUM_TIMELINES = [16, 26, 39]
+
+
+async def _run_optimum(job_id: str, user: dict, profile: dict, goal: dict, signature: str):
+    try:
+        content, _ = await objstore.get_object(user["base_photo_path"])
+        if not content:
+            raise RuntimeError("Base photo bytes empty")
+        base_b64 = base64.b64encode(content).decode("utf-8")
+        base_result = te.compute(_engine_input(user, profile, goal))
+        items = []
+        for i, weeks in enumerate(OPTIMUM_TIMELINES):
+            inp = _engine_input(user, profile, {**goal, "timeline_weeks": weeks})
+            result = te.compute(inp)
+            stretch = next(t for t in result.targets if t.label == "stretch")
+            img_b64, qa = await render_with_magnitude_gate(
+                ai, current_bf=result.body_fat_pct, target_bf=stretch.body_fat_pct,
+                base_b64=base_b64, base_bytes=content, session_id=f"opt-{user['id']}-{weeks}")
+            img_bytes = base64.b64decode(img_b64)
+            path = objstore.object_path(user["id"], "png", str(uuid.uuid4()))
+            await objstore.put_object(path, img_bytes, "image/png")
+            items.append({"timeline_weeks": weeks, "weight_kg": stretch.weight_kg,
+                          "weight_lb": stretch.weight_lb, "body_fat_pct": stretch.body_fat_pct,
+                          "what_it_takes": stretch.what_it_takes, "path": path,
+                          "identity_pass": qa.get("identity_pass")})
+            await db.optimum_jobs.update_one(
+                {"id": job_id}, {"$set": {"progress": int(20 + (i + 1) / len(OPTIMUM_TIMELINES) * 75)}})
+        doc = {"user_id": user["id"], "signature": signature,
+               "current_body_fat_pct": base_result.body_fat_pct,
+               "current_weight_kg": profile["weight_kg"], "direction": goal["direction"],
+               "items": items, "created_at": datetime.now(timezone.utc).isoformat()}
+        await db.optimum_sets.update_one({"user_id": user["id"]}, {"$set": doc}, upsert=True)
+        await db.optimum_jobs.update_one(
+            {"id": job_id}, {"$set": {"status": "done", "progress": 100, "items": items,
+                                      "current_body_fat_pct": base_result.body_fat_pct,
+                                      "current_weight_kg": profile["weight_kg"]}})
+    except Exception as e:
+        logger.exception("Optimum failed")
+        await db.optimum_jobs.update_one(
+            {"id": job_id}, {"$set": {"status": "error", "error": str(e)[:300]}})
+
+
+def _optimum_signature(user: dict, profile: dict, goal: dict) -> str:
+    return f"{user.get('base_photo_sha256')}:{profile['weight_kg']}:{goal['direction']}"
+
+
+@api.post("/optimum")
+async def start_optimum(user: dict = Depends(get_current_user)):
+    if not user.get("base_photo_path"):
+        raise HTTPException(400, "Upload a base photo first")
+    profile = await db.health_profiles.find_one({"user_id": user["id"]})
+    goal = await _active_goal(user["id"])
+    if not profile or not goal:
+        raise HTTPException(400, "Complete onboarding first")
+    signature = _optimum_signature(user, profile, goal)
+    cached = await db.optimum_sets.find_one({"user_id": user["id"], "signature": signature})
+    if cached and cached.get("items"):
+        return {"job_id": None, "status": "done", "cached": True}
+    job = {"id": str(uuid.uuid4()), "user_id": user["id"], "status": "running",
+           "progress": 5, "error": None, "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.optimum_jobs.insert_one(job)
+    asyncio.create_task(_run_optimum(job["id"], _clean(user), _clean(profile),
+                                     _clean(goal), signature))
+    return {"job_id": job["id"], "status": "running", "cached": False}
+
+
+@api.get("/optimum/job/{job_id}")
+async def optimum_job(job_id: str, user: dict = Depends(get_current_user)):
+    job = await db.optimum_jobs.find_one({"id": job_id, "user_id": user["id"]})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    return _clean(job)
+
+
+@api.get("/optimum")
+async def get_optimum(user: dict = Depends(get_current_user)):
+    doc = await db.optimum_sets.find_one({"user_id": user["id"]})
+    if not doc:
+        raise HTTPException(404, "No optimum preview yet")
+    return _clean(doc)
+
+
 @api.patch("/settings")
 async def update_settings(data: SettingsIn, user: dict = Depends(get_current_user)):
     updates = {k: v for k, v in data.model_dump().items() if v is not None}
@@ -825,8 +1067,8 @@ async def update_settings(data: SettingsIn, user: dict = Depends(get_current_use
 @api.get("/account/export")
 async def export_data(user: dict = Depends(get_current_user)):
     profile = _clean(await db.health_profiles.find_one({"user_id": user["id"]}))
-    goal = _clean(await db.goals.find_one({"user_id": user["id"]}))
-    plan = _clean(await db.plans.find_one({"user_id": user["id"]}))
+    goal = _clean(await _active_goal(user["id"]))
+    plan = _clean(await _current_plan_doc(user["id"]))
     logs = [_clean(l) async for l in db.daily_logs.find({"user_id": user["id"]})]
     coach = [_clean(m) async for m in db.coach_messages.find({"user_id": user["id"]})]
     return {"user": public_user(user), "profile": profile, "goal": goal,
@@ -857,6 +1099,10 @@ app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"],
 @app.on_event("startup")
 async def startup():
     await ensure_indexes()
+    try:
+        await _migrate_goal_versioning()
+    except Exception as e:
+        logger.warning("Goal versioning migration skipped: %s", e)
     try:
         await objstore.init_storage()
     except Exception as e:

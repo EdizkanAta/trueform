@@ -151,6 +151,8 @@ def compute(inp: EngineInput) -> EngineResult:
     tdee = round(tdee)
 
     weeks = max(1, inp.timeline_weeks)
+    fat_mass = inp.weight_kg * (bf / 100.0)
+    recomp = inp.direction == "recomp"
 
     if inp.direction == "gain":
         max_rate = inp.weight_kg * MAX_GAIN_FRACTION_PER_WEEK
@@ -159,10 +161,13 @@ def compute(inp: EngineInput) -> EngineResult:
         expected_rate = stretch_rate * 0.7
         conservative_rate = expected_rate * 0.8
         direction_sign = 1
-    elif inp.direction == "recomp":
-        # Minimal weight change; focus on body composition.
-        stretch_rate = inp.weight_kg * 0.0015
-        expected_rate = stretch_rate * 0.6
+    elif recomp:
+        # Recomposition: near-stable weight, but real fat loss offset by muscle gain.
+        # `rate` here is weekly FAT-MASS loss (kg), safely capped at 0.5%/week.
+        stretch_rate = inp.weight_kg * 0.005
+        cond_factor = _condition_rate_factor(inp.conditions)
+        stretch_rate *= cond_factor
+        expected_rate = stretch_rate * 0.7
         conservative_rate = expected_rate * 0.8
         direction_sign = -1
     else:  # lose
@@ -174,6 +179,19 @@ def compute(inp: EngineInput) -> EngineResult:
         direction_sign = -1
 
     def make_target(label: str, rate_kg: float) -> Target:
+        if recomp:
+            # rate_kg = weekly fat-mass loss; ~60% of lost fat is replaced by muscle,
+            # so weight stays near-stable while body fat % drops meaningfully.
+            fat_lost = min(fat_mass * 0.6, rate_kg * weeks)
+            muscle_gained = 0.6 * fat_lost
+            new_weight = round(inp.weight_kg - fat_lost + muscle_gained, 1)
+            new_fat_mass = max(0.0, fat_mass - fat_lost)
+            new_bf = round(max(3.0, min(60.0, new_fat_mass / max(1.0, new_weight) * 100.0)), 1)
+            wit = (f"Recomposition over {weeks} weeks — hold ~{new_weight} kg while dropping "
+                   f"body fat ({label} path)")
+            return Target(label=label, weight_kg=new_weight,
+                          weight_lb=round(new_weight / KG_PER_LB, 1),
+                          body_fat_pct=new_bf, what_it_takes=wit)
         delta = direction_sign * rate_kg * weeks
         new_weight = round(inp.weight_kg + delta, 1)
         new_bmi = new_weight / (height_m * height_m)
@@ -182,11 +200,7 @@ def compute(inp: EngineInput) -> EngineResult:
             new_bf = round(max(3.0, bf - abs(delta) * 0.3), 1)
         rate_lb = round(rate_kg / KG_PER_LB, 2)
         verb = "gain" if inp.direction == "gain" else "lose"
-        wit = (
-            f"~{rate_lb} lb/week {verb} · {label} path over {weeks} weeks"
-            if inp.direction != "recomp"
-            else f"Hold weight, recomposition over {weeks} weeks"
-        )
+        wit = f"~{rate_lb} lb/week {verb} · {label} path over {weeks} weeks"
         return Target(
             label=label,
             weight_kg=new_weight,
