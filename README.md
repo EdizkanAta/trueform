@@ -46,11 +46,19 @@ Both run on the **Emergent Universal Key** (`EMERGENT_LLM_KEY`) — no third-par
 swap, change `AI_TEXT_PROVIDER/MODEL` or `AI_IMAGE_PROVIDER/MODEL` in `backend/.env`.
 
 ### Exercise demo media — license
-`MEDIA_PROVIDER=wger` → the free **wger** open exercise database (`wger.de`, content **CC-BY-SA 4.0**),
-enriched at seed time and stored per-exercise with `source` + `license` + `attribution`. It sits
-behind a `MediaProvider` interface (`media_provider.py`) so you can drop in your own filmed videos
-later (`MEDIA_PROVIDER=custom`) with **no code changes**. No YouTube hotlinking, no scraping.
-Attribution is shown in-app (Profile screen).
+`MEDIA_PROVIDER=wger` (default) → the free **wger** open exercise database (`wger.de`, content
+**CC-BY-SA 4.0**), enriched at seed time and stored per-exercise with `source` + `license` +
+`attribution`. `MEDIA_PROVIDER=exercisedb` → the **ExerciseDB** API on RapidAPI
+(`exercisedb.p.rapidapi.com`, requires `RAPIDAPI_KEY` — see `backend/.env.example`); it maps each
+of our exercise names to an ExerciseDB exercise id by fuzzy name + target-muscle matching and uses
+the demo GIF as `demo_url`/`poster_image_url`, recording the ExerciseDB id, source and license per
+exercise. Both sit behind the same `MediaProvider` interface (`media_provider.py`) so you can drop
+in your own filmed videos later (`MEDIA_PROVIDER=custom`) with **no code changes**. An exercise a
+provider can't confidently map falls back to the in-app "Demo coming soon" placeholder — it's never
+left half-populated or wrong. No YouTube hotlinking, no scraping. Attribution is shown in-app
+(Profile screen). See `backend/reports/exercisedb_mapping_report.md` (regenerate with
+`python backend/scripts/generate_exercisedb_mapping_report.py`) for which of our 22 catalog
+exercises the ExerciseDB provider matches.
 
 ---
 
