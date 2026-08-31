@@ -1,0 +1,33 @@
+{
+  "summary": "Consolidated corrective pass VERIFIED. Backend: 13/13 pytest cases pass in /app/backend/tests/test_plan_verification.py against the public URL. ITEM 3: GET /api/plan returns chosen_render_path pointing at the user's chosen future-self render (persists even when ?environment= override is used). ITEM 4: GET /api/plan?environment=home_no_equipment returns workout exercises all with equipment=='none' and no 'barbell' names (slugs push-up, inverted-row-band, pike-push-up, plank). GET /api/plan?environment=gym returns barbell/dumbbell named lifts (barbell-bench-press, barbell-row, overhead-press, plank). Day.environment on override correctly reflects requested env. ITEM 2: every workout exercise carries a non-empty form_cues list and a poster_image_url key (value may be null when wger returned no demo — EXPECTED per review-request note). ITEM 5: GET /api/progress.chosen_render exposes weight_kg (78.8), body_fat_pct (22.4), what_it_takes. renderExercisePose stub: no HTTP route exists at any candidate path (/api/render_exercise_pose, /api/renderExercisePose, /api/exercises/render, /api/plan/exercise/render) — all non-200 as expected; ai_provider.py:141 raises NotImplementedError so the interface remains code-level only. Frontend (mobile viewport 375x667, live web preview, credentials e2e1788128321@trueform.app/Test1234!): ITEM 6 verified live — targets-blur-toggle is 'Blurred' by default and flips to 'Blur' on tap (with the three render images visibly de-blurring in screenshots); plan-blur-toggle same behavior on the Plan workout-day header. ITEM 3 visual: the Plan workout-day header uses the personalized future-self render (chosen_render_path piped through fileUrl) — screenshot shows the render behind the header with the 'Workout · Upper Body / Gym' overlay and 2294 kcal daily target above. ITEM 4 UI: all three env chips render (plan-env-gym / plan-env-home_equipment / plan-env-home_no_equipment); tapping home_no_equipment swaps the exercise list live to bodyweight exercises (plan-ex-push-up, plan-ex-inverted-row-band, plan-ex-pike-push-up, plan-ex-plank) and tapping gym swaps back to barbell lifts (plan-ex-barbell-bench-press, plan-ex-barbell-row, plan-ex-overhead-press, plan-ex-plank). ITEM 2 UI: tapping an exercise row opens the detail modal; when the exercise has no demo image, the plan-ex-poster-placeholder ('Demo coming soon') renders correctly. ITEM 5 UI: progress-render-stats card shows TARGET WEIGHT 78.8 kg, EST. BODY FAT 22.4%, and the 'what it takes' line (~1.02 lb/week lose · expected path over 20 weeks). ITEM 1 regression: app launches DARK by default — Screen/Plan/Progress/Targets screenshots confirm dark surface + light text; the ESTIMATE pill overlay is a fixed neutral scrim independent of theme.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_plan_verification.py — new pytest suite (13 cases: chosen_render_path, env toggle, form_cues+poster_image_url, progress render stats, renderExercisePose stub)",
+    "/app/test_reports/pytest/pytest_iteration_6.xml — JUnit XML, 13 passed / 0 failed"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:541-568 (get_plan): correctly rebuilds the plan when ?environment= override is present via _build_plan(env_schedule_override={'default': environment}) and then re-attaches chosen_render_path from future_self_sets so the workout header can still show the personalized render — key to items 3 and 4 working simultaneously.",
+    "server.py:565-568: fills in form_cues + poster_image_url from the exercises catalog when the plan-builder dropped them — resilient path so item 2's contract is always honored.",
+    "plan_builder.py:64: exercise dict includes form_cues (from PATTERN_CUES) and poster_image_url from the exercise's media.demo_url — matches item 2's spec.",
+    "ai_provider.py:141-143: BaseAIProvider.render_exercise_pose raises NotImplementedError('renderExercisePose is an interface stub in MVP — licensed/filmed media is used instead') — correct stub, no route wired.",
+    "frontend plan.tsx:30 default state blurMedia=true; plan.tsx:92-99 BlurView only rendered while blurMedia; toggle inverts. targets.tsx:36 default blur=true; targets.tsx:103 BlurView conditional. progress.tsx ComparisonViewer has NO blur — matches the ITEM 6 exception."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_plan_verification.py (new)",
+    "/app/test_reports/pytest/pytest_iteration_6.xml (new JUnit XML)",
+    "/app/test_reports/iteration_6.json (this file)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100% (items 1,2,3,4,5,6 all visually + programmatically verified)"},
+  "seed_data_creation": "None. Reused e2e1788128321@trueform.app / Test1234! which already has base_photo + targets + a chosen expected render + a built plan. Tests are read-only against /api/plan, /api/progress, and the stub route candidates.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/test_plan_verification.py to regress items 2/3/4/5 and the renderExercisePose stub in future runs. Auth token key is `access_token` (not `token`) — the helper in this test already handles both. Env chip mapping is fixed at src/lib/format.ENV_LABELS (gym / home_equipment / home_no_equipment). The gym-catalog stores equipment='gym' (not 'barbell') so equipment-based assertions must key on 'none' vs 'gym' — item 4's bodyweight guarantee is verified by equipment=='none' AND absence of 'barbell' in exercise names.",
+  "rca_of_issue": "N/A — no regressions found in this iteration."
+}

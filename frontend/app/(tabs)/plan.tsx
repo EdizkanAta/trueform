@@ -1,13 +1,15 @@
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { useTheme } from "@/src/theme/ThemeContext";
 import { overlay } from "@/src/theme/theme";
-import { api } from "@/src/api/client";
+import { api, fileUrl } from "@/src/api/client";
 import { Card, Chip, Label, ListRow, Screen, Skeleton, StatReadout, MedicalDisclaimer } from "@/src/components/ui";
 import { FullBleedCard } from "@/src/components/FullBleedCard";
 import { ENV_LABELS } from "@/src/lib/format";
@@ -25,6 +27,8 @@ export default function PlanScreen() {
   const [dayIdx, setDayIdx] = useState(0);
   const [envOverride, setEnvOverride] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [blurMedia, setBlurMedia] = useState(true);
+  const [selEx, setSelEx] = useState<any>(null);
 
   const load = useCallback(async (env?: string | null) => {
     const q = env ? `?environment=${env}` : "";
@@ -46,6 +50,7 @@ export default function PlanScreen() {
 
   const day = plan.days[dayIdx];
   const currentEnv = envOverride || day?.environment;
+  const chosenRenderUri = fileUrl(plan.chosen_render_path);
 
   return (
     <Screen>
@@ -82,7 +87,21 @@ export default function PlanScreen() {
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}>
         {/* Workout */}
-        <FullBleedCard imageUri={GYM_IMG} title={day.type === "recovery" ? "Recovery Day" : `Workout · ${day.focus}`} subtitle={ENV_LABELS[currentEnv] || currentEnv} height={140} />
+        <View style={{ height: 150, borderRadius: radius.md, overflow: "hidden", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
+          <Image source={{ uri: chosenRenderUri || GYM_IMG }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" />
+          {chosenRenderUri && blurMedia ? <BlurView intensity={55} tint="dark" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} /> : null}
+          <LinearGradient colors={["transparent", colors.scrim, colors.bg]} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 110 }} />
+          {chosenRenderUri ? (
+            <Pressable testID="plan-blur-toggle" onPress={() => setBlurMedia((b) => !b)} style={{ position: "absolute", top: 10, right: 10, backgroundColor: overlay.scrim, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", gap: 6, alignItems: "center" }}>
+              <Feather name={blurMedia ? "eye-off" : "eye"} size={14} color={overlay.onImage} />
+              <Text style={{ color: overlay.onImage, fontSize: font.size.xs }}>{blurMedia ? "Blurred" : "Blur"}</Text>
+            </Pressable>
+          ) : null}
+          <View style={{ position: "absolute", left: spacing.md, bottom: spacing.md }}>
+            <Text style={{ color: colors.textPrimary, fontSize: font.size.lg, fontWeight: "600" }}>{day.type === "recovery" ? "Recovery Day" : `Workout · ${day.focus}`}</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: font.size.sm }}>{ENV_LABELS[currentEnv] || currentEnv}</Text>
+          </View>
+        </View>
         <Card style={{ marginTop: spacing.sm }}>
           {day.type === "recovery" ? (
             (plan.recovery_protocol || []).map((r: any) => (
@@ -90,9 +109,9 @@ export default function PlanScreen() {
             ))
           ) : (
             day.workout.map((ex: any, i: number) => (
-              <View key={ex.slug + i} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: spacing.sm, borderBottomWidth: i < day.workout.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
-                {ex.media?.demo_url ? (
-                  <Image source={{ uri: ex.media.demo_url }} style={{ width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
+              <Pressable key={ex.slug + i} testID={`plan-ex-${ex.slug}`} onPress={() => setSelEx(ex)} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: spacing.sm, borderBottomWidth: i < day.workout.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                {ex.media?.demo_url || ex.poster_image_url ? (
+                  <Image source={{ uri: ex.poster_image_url || ex.media.demo_url }} style={{ width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
                 ) : (
                   <View style={{ width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" }}>
                     <Feather name="activity" size={20} color={colors.textTertiary} />
@@ -103,7 +122,8 @@ export default function PlanScreen() {
                   <Text style={{ color: colors.textSecondary, fontSize: font.size.sm }}>{ex.sets} × {ex.reps} · rest {ex.rest_sec}s</Text>
                   {ex.safety_note ? <Text style={{ color: colors.warning, fontSize: font.size.xs, marginTop: 2 }}>{ex.safety_note}</Text> : null}
                 </View>
-              </View>
+                <Feather name="chevron-right" size={20} color={colors.textTertiary} />
+              </Pressable>
             ))
           )}
         </Card>
@@ -147,6 +167,42 @@ export default function PlanScreen() {
 
         <View style={{ marginTop: spacing.md }}><MedicalDisclaimer /></View>
       </ScrollView>
+
+      <Modal visible={!!selEx} transparent animationType="slide" onRequestClose={() => setSelEx(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: overlay.scrim, justifyContent: "flex-end" }} onPress={() => setSelEx(null)}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, paddingBottom: insets.bottom + spacing.lg, borderWidth: 1, borderColor: colors.border }}>
+            {selEx ? (
+              <View>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: font.size.xl, fontWeight: "600", flex: 1 }}>{selEx.name}</Text>
+                  <Feather name="x" size={24} color={colors.textSecondary} onPress={() => setSelEx(null)} />
+                </View>
+                {selEx.poster_image_url || selEx.media?.demo_url ? (
+                  <Image source={{ uri: selEx.poster_image_url || selEx.media.demo_url }} style={{ width: "100%", height: 200, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surfaceElevated }} contentFit="cover" />
+                ) : (
+                  <View testID="plan-ex-poster-placeholder" style={{ height: 160, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" }}>
+                    <Feather name="activity" size={30} color={colors.textTertiary} />
+                    <Text style={{ color: colors.textTertiary, fontSize: font.size.xs, marginTop: 6 }}>Demo coming soon</Text>
+                  </View>
+                )}
+                <View style={{ flexDirection: "row", gap: spacing.xl, marginTop: spacing.md }}>
+                  <StatReadout value={selEx.sets} label="sets" size={font.size.xl} />
+                  <StatReadout value={selEx.reps} label="reps" size={font.size.lg} />
+                  <StatReadout value={`${selEx.rest_sec}s`} label="rest" size={font.size.xl} />
+                </View>
+                {selEx.safety_note ? <Text style={{ color: colors.warning, fontSize: font.size.sm, marginTop: spacing.sm }}>{selEx.safety_note}</Text> : null}
+                <View style={{ marginTop: spacing.md }}>
+                  <Label>Form cues</Label>
+                  {(selEx.form_cues || []).map((c: string, i: number) => (
+                    <Text key={i} style={{ color: colors.textSecondary, fontSize: font.size.sm, marginTop: 4 }}>• {c}</Text>
+                  ))}
+                </View>
+                <Text style={{ color: colors.textTertiary, fontSize: font.size.xs, marginTop: spacing.md }}>Media: {selEx.media?.attribution || "your own library"}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }

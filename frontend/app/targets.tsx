@@ -33,7 +33,7 @@ export default function TargetsScreen() {
 
   const [data, setData] = useState<Targets | null>(null);
   const [selected, setSelected] = useState<string>("expected");
-  const [blur, setBlur] = useState(false);
+  const [blur, setBlur] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 

@@ -29,7 +29,7 @@ import target_engine as te  # noqa: E402
 import coach_filter  # noqa: E402
 import plan_builder  # noqa: E402
 import object_storage as objstore  # noqa: E402
-from ai_provider import get_provider, build_render_prompt  # noqa: E402
+from ai_provider import get_provider, build_render_prompt, render_with_magnitude_gate  # noqa: E402
 from seed_data import seed_if_empty  # noqa: E402
 
 logging.basicConfig(level=logging.INFO,
@@ -333,17 +333,20 @@ async def _run_generation(job_id: str, user: dict, profile: dict, goal: dict):
         labels = ["conservative", "expected", "stretch"]
 
         async def render_one(label: str):
-            stats = te.render_prompt_stats(result, label)
-            prompt = build_render_prompt(stats, label)
-            img_b64 = await ai.render_future_self(prompt, base_b64, session_id=f"{job_id}-{label}")
+            target = next(t for t in result.targets if t.label == label)
+            img_b64, qa = await render_with_magnitude_gate(
+                ai, current_bf=result.body_fat_pct, target_bf=target.body_fat_pct,
+                base_b64=base_b64, base_bytes=content, session_id=f"{job_id}-{label}",
+            )
             img_bytes = base64.b64decode(img_b64)
             uid = str(uuid.uuid4())
             path = objstore.object_path(user["id"], "png", uid)
             await objstore.put_object(path, img_bytes, "image/png")
-            target = next(t for t in result.targets if t.label == label)
+            logger.info("render %s qa=%s", label, qa)
             return label, {
                 "path": path, "weight_kg": target.weight_kg, "weight_lb": target.weight_lb,
                 "body_fat_pct": target.body_fat_pct, "what_it_takes": target.what_it_takes,
+                "qa": qa,
             }
 
         # Render the three targets concurrently (each retries internally).
@@ -399,6 +402,103 @@ async def generate_status(job_id: str, user: dict = Depends(get_current_user)):
 
 
 # --------------------------------------------------------------------------- #
+# Calibration (magnitude-gate demonstration)
+# --------------------------------------------------------------------------- #
+@api.post("/calibration")
+async def calibration(user: dict = Depends(get_current_user)):
+    if not user.get("base_photo_path"):
+        raise HTTPException(400, "Upload a base photo first")
+    profile = await db.health_profiles.find_one({"user_id": user["id"]})
+    goal = await db.goals.find_one({"user_id": user["id"]})
+    if not profile or not goal:
+        raise HTTPException(400, "Complete onboarding first")
+    job = {"id": str(uuid.uuid4()), "user_id": user["id"], "status": "running",
+           "progress": 5, "error": None, "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.calibration_jobs.insert_one(job)
+    asyncio.create_task(_run_calibration(job["id"], user, _clean(profile), _clean(goal)))
+    return {"job_id": job["id"], "status": "running"}
+
+
+async def _run_calibration(job_id: str, user: dict, profile: dict, goal: dict):
+    try:
+        result = te.compute(_engine_input(user, profile, goal))
+        content, _ = await objstore.get_object(user["base_photo_path"])
+        base_b64 = base64.b64encode(content).decode("utf-8")
+        current_bf = result.body_fat_pct
+
+        async def one(drop: int):
+            target_bf = round(max(3.0, current_bf - drop), 1)
+            img_b64, qa = await render_with_magnitude_gate(
+                ai, current_bf, target_bf, base_b64, content, f"calib-{user['id']}-{drop}")
+            img_bytes = base64.b64decode(img_b64)
+            path = objstore.object_path(user["id"], "png", str(uuid.uuid4()))
+            await objstore.put_object(path, img_bytes, "image/png")
+            return drop, img_bytes, {"drop_pct": drop, "target_body_fat_pct": target_bf,
+                                     "path": path, "qa": qa}
+
+        results = await asyncio.gather(*[one(d) for d in (5, 10, 15)])
+        results.sort(key=lambda r: r[0])
+        renders = [r[2] for r in results]
+        out_bytes = [(r[0], r[1]) for r in results]
+
+        from image_qa import change_score
+        pairs = {}
+        for i in range(len(out_bytes)):
+            for j in range(i + 1, len(out_bytes)):
+                pairs[f"{out_bytes[i][0]}vs{out_bytes[j][0]}"] = round(
+                    change_score(out_bytes[i][1], out_bytes[j][1]), 4)
+
+        doc = {"user_id": user["id"], "current_body_fat_pct": current_bf, "renders": renders,
+               "pairwise_distinctness": pairs, "created_at": datetime.now(timezone.utc).isoformat()}
+        await db.calibrations.update_one({"user_id": user["id"]}, {"$set": doc}, upsert=True)
+        all_pass = all(r["qa"].get("identity_pass") for r in renders)
+        await db.calibration_jobs.update_one({"id": job_id}, {"$set": {
+            "status": "done", "progress": 100, "current_body_fat_pct": current_bf,
+            "renders": renders, "pairwise_distinctness": pairs, "identity_all_pass": all_pass}})
+    except Exception as e:
+        logger.exception("Calibration failed")
+        await db.calibration_jobs.update_one({"id": job_id},
+                                             {"$set": {"status": "error", "error": str(e)[:300]}})
+
+
+@api.get("/calibration/job/{job_id}")
+async def calibration_status(job_id: str, user: dict = Depends(get_current_user)):
+    job = await db.calibration_jobs.find_one({"id": job_id, "user_id": user["id"]})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    return _clean(job)
+
+
+@api.get("/calibration/view")
+async def calibration_view(token: str = Query(...)):
+    user = await _resolve_user_from_token(token)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+    calib = await db.calibrations.find_one({"user_id": user["id"]})
+    if not calib:
+        raise HTTPException(404, "No calibration yet")
+
+    def cell(r: dict) -> str:
+        url = f"/api/files/{r['path']}?token={token}"
+        return (
+            '<div style="flex:1;text-align:center">'
+            f'<div style="color:#9BA0A8;font:600 12px sans-serif;letter-spacing:1.5px">'
+            f'&minus;{r["drop_pct"]}% BF &middot; ~{r["target_body_fat_pct"]}%</div>'
+            f'<img src="{url}" style="width:100%;border-radius:12px;margin-top:8px"/></div>'
+        )
+
+    cells = "".join(cell(r) for r in calib["renders"])
+    html = (
+        '<html><body style="margin:0;background:#0E0F12;padding:16px">'
+        f'<div style="color:#F2F3F5;font:200 22px sans-serif">Calibration &middot; base at '
+        f'~{calib["current_body_fat_pct"]}% body fat</div>'
+        f'<div style="display:flex;gap:12px;margin-top:16px">{cells}</div>'
+        '</body></html>'
+    )
+    return Response(content=html, media_type="text/html")
+
+
+# --------------------------------------------------------------------------- #
 # Targets + plan
 # --------------------------------------------------------------------------- #
 @api.get("/targets")
@@ -443,13 +543,30 @@ async def get_plan(environment: Optional[str] = Query(None),
     plan = await db.plans.find_one({"user_id": user["id"]})
     if not plan:
         raise HTTPException(404, "No plan yet")
+    # chosen future-self render (for the workout day header cards)
+    chosen_render_path = None
+    fss = await db.future_self_sets.find_one({"user_id": user["id"]})
+    if fss and user.get("chosen_target"):
+        chosen_render_path = (fss.get("renders", {}).get(user["chosen_target"]) or {}).get("path")
     if environment:  # context switch (e.g. traveling) — rebuild, don't persist
         override = {"default": environment}
         rebuilt, _, _ = await _build_and_save_plan(user, override)
         rebuilt["chosen_target"] = plan.get("chosen_target")
         rebuilt["environment_override"] = environment
+        rebuilt["chosen_render_path"] = chosen_render_path
         return rebuilt
-    return _clean(plan)
+    out = _clean(plan)
+    out["chosen_render_path"] = chosen_render_path
+    # enrich persisted workout entries with form cues / poster (plan is a snapshot)
+    cue_map = {e["slug"]: e async for e in db.exercises.find({})}
+    for day in out.get("days", []):
+        for ex in day.get("workout", []):
+            src = cue_map.get(ex.get("slug"), {})
+            ex.setdefault("form_cues", src.get("form_cues", []))
+            if not ex.get("form_cues"):
+                ex["form_cues"] = src.get("form_cues", [])
+            ex.setdefault("poster_image_url", src.get("poster_image_url"))
+    return out
 
 
 # --------------------------------------------------------------------------- #

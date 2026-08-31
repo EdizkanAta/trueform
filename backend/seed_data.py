@@ -87,6 +87,17 @@ EXERCISES: List[Dict] = [
      "sets": 3, "reps": "10-12/side", "rest_sec": 45, "contraindications": []},
 ]
 
+PATTERN_CUES = {
+    "horizontal_push": ["Brace your core, shoulder blades back and down", "Lower under control to mid-chest", "Press without flaring elbows past 45°"],
+    "vertical_push": ["Ribs down, glutes tight", "Press straight overhead, biceps by your ears", "Don't overarch the lower back"],
+    "horizontal_pull": ["Pull your elbow toward your hip, not up", "Squeeze the shoulder blade at the top", "Keep your neck long and relaxed"],
+    "vertical_pull": ["Start from a full hang/stretch", "Drive your elbows down to your ribs", "Avoid swinging or kipping"],
+    "squat": ["Feet shoulder-width, toes slightly out", "Sit down and back, knees track over toes", "Drive through mid-foot to stand"],
+    "hinge": ["Soft knees, push your hips back", "Keep the weight close to your legs", "Flat back — hinge, don't round"],
+    "conditioning": ["Keep an easy, conversational pace", "Relaxed shoulders, steady breathing", "Land mid-foot with light steps"],
+    "core": ["Breathe steadily, don't hold your breath", "Keep the lower back neutral", "Move slowly with control"],
+}
+
 RECIPES: List[Dict] = [
     {"slug": "greek-yogurt-bowl", "name": "Greek Yogurt & Berry Bowl", "kcal": 320,
      "macros": {"protein_g": 28, "carbs_g": 34, "fat_g": 8}, "meal_type": "breakfast",
@@ -158,9 +169,22 @@ async def seed_if_empty() -> None:
         docs = []
         for ex in EXERCISES:
             media = provider.enrich(ex["name"])
-            docs.append({**ex, "media": media, "media_provider": provider.name})
+            docs.append({**ex, "media": media, "media_provider": provider.name,
+                         "form_cues": PATTERN_CUES.get(ex["pattern"], []),
+                         "poster_image_url": media.get("demo_url")})
         if docs:
             await db.exercises.insert_many(docs)
 
     if await db.recipes.count_documents({}) == 0:
         await db.recipes.insert_many([{**r} for r in RECIPES])
+
+    await backfill_exercise_cues()
+
+
+async def backfill_exercise_cues() -> None:
+    """Add form_cues + poster_image_url to any exercise docs missing them."""
+    async for ex in db.exercises.find({"form_cues": {"$exists": False}}):
+        await db.exercises.update_one({"slug": ex["slug"]}, {"$set": {
+            "form_cues": PATTERN_CUES.get(ex.get("pattern"), []),
+            "poster_image_url": (ex.get("media") or {}).get("demo_url"),
+        }})

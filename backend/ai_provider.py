@@ -17,7 +17,7 @@ import json
 import os
 import uuid
 from abc import ABC, abstractmethod
-from typing import Awaitable, Callable, Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 from emergentintegrations.llm.chat import (
     LlmChat,
@@ -26,6 +26,8 @@ from emergentintegrations.llm.chat import (
     TextDelta,
     StreamDone,
 )
+
+import image_qa
 
 EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
 
@@ -54,6 +56,12 @@ class AIProvider(ABC):
 
     @abstractmethod
     async def render_future_self(self, prompt: str, base_image_b64: str, session_id: str) -> str: ...
+
+    @abstractmethod
+    async def render_exercise_pose(self, exercise_name: str, cues: List[str], session_id: str) -> str:
+        """Interface stub for future exercise-pose image generation. Not
+        implemented in MVP — filmed/licensed media is used instead."""
+        ...
 
 
 class EmergentAIProvider(AIProvider):
@@ -130,14 +138,77 @@ class EmergentAIProvider(AIProvider):
             last_text = (text or "")[:120]
         raise RuntimeError(f"Image model returned no image after retries. {last_text}")
 
+    async def render_exercise_pose(self, exercise_name: str, cues: List[str], session_id: str) -> str:
+        raise NotImplementedError(
+            "renderExercisePose is an interface stub in MVP — licensed/filmed media is used instead")
+
 
 def get_provider(cost_logger: Optional[CostLogger] = None) -> AIProvider:
     return EmergentAIProvider(cost_logger=cost_logger)
 
 
+async def render_with_magnitude_gate(
+    provider: "AIProvider", current_bf: float, target_bf: float,
+    base_b64: str, base_bytes: bytes, session_id: str,
+) -> Tuple[str, dict]:
+    """Render one target with a MAGNITUDE gate AND an IDENTITY gate.
+
+    Magnitude: single-shot edit; if a visible change was expected but the output
+    is a near-copy of the base, retry with progressive multi-step edits.
+    Identity: face-embedding (SFace) cosine vs the base photo; if it drops below
+    the same-person threshold, retry once with LOWER facial edit strength and
+    keep whichever candidate preserves identity best.
+    Returns (image_b64, qa_meta).
+    """
+    mag = abs(current_bf - target_bf)
+    stats = {"current_body_fat_pct": current_bf, "target_body_fat_pct": target_bf}
+    candidate = await provider.render_future_self(build_render_prompt(stats, ""), base_b64, session_id)
+
+    expected_visible = mag >= image_qa.VISIBLE_THRESHOLD_BF
+    qa: dict = {"mode": "single", "expected_visible": expected_visible, "score": None}
+
+    if expected_visible:
+        score = image_qa.change_score(base_bytes, base64.b64decode(candidate))
+        qa["score"] = round(score, 4)
+        if score < image_qa.NEAR_COPY_MAX:
+            # Near-copy -> progressive multi-step re-edit.
+            steps = 3
+            prev_b64 = base_b64
+            from_bf = current_bf
+            for k in range(1, steps + 1):
+                to_bf = current_bf + (target_bf - current_bf) * (k / steps)
+                step_stats = {"current_body_fat_pct": round(from_bf, 1), "target_body_fat_pct": round(to_bf, 1)}
+                prev_b64 = await provider.render_future_self(
+                    build_render_prompt(step_stats, ""), prev_b64, f"{session_id}-step{k}")
+                from_bf = to_bf
+            candidate = prev_b64
+            qa = {"mode": "progressive", "expected_visible": True, "steps": steps,
+                  "score_single": round(score, 4),
+                  "score": round(image_qa.change_score(base_bytes, base64.b64decode(candidate)), 4)}
+
+    # --- Identity gate --------------------------------------------------------
+    sim = image_qa.face_similarity(base_bytes, base64.b64decode(candidate))
+    qa["identity_checked"] = sim is not None
+    qa["identity_similarity"] = round(sim, 4) if sim is not None else None
+    qa["identity_mode"] = "ok"
+    if sim is not None and sim < image_qa.IDENTITY_MIN:
+        retry = await provider.render_future_self(
+            build_render_prompt(stats, "", face_strength="low"), base_b64, f"{session_id}-idretry")
+        rsim = image_qa.face_similarity(base_bytes, base64.b64decode(retry))
+        qa["identity_retry_similarity"] = round(rsim, 4) if rsim is not None else None
+        if rsim is None or rsim > sim:
+            candidate, sim = retry, (rsim if rsim is not None else sim)
+            qa["identity_mode"] = "retry_low_face"
+        else:
+            qa["identity_mode"] = "kept_original"
+        qa["identity_similarity"] = round(sim, 4) if sim is not None else None
+    qa["identity_pass"] = (sim is None) or (sim >= image_qa.IDENTITY_MIN)
+    return candidate, qa
+
+
 # --- Prompt builders --------------------------------------------------------
 
-def build_render_prompt(stats: dict, label: str) -> str:
+def build_render_prompt(stats: dict, label: str, face_strength: str = "auto") -> str:
     """Image-to-image prompt: change body composition AND facial soft tissue
     PROPORTIONALLY to the computed body-fat change, while strictly preserving
     identity (bone structure, eyes, nose, ears, hairline, hair/beard, skin tone,
@@ -174,6 +245,11 @@ def build_render_prompt(stats: dict, label: str) -> str:
         body_change = "a realistic increase in muscle with a slightly fuller, healthier face"
         face_change = ("a subtle change to facial soft tissue — a slightly fuller, firmer face "
                        "appropriate to gaining lean mass")
+
+    if face_strength in ("low", "minimal"):
+        # Identity-preserving retry: keep the face almost untouched, change the body.
+        face_change = ("only a very slight change to facial soft tissue — keep the face almost "
+                       "identical to the original, apply the change mainly to the body")
 
     return (
         f"Edit this full-body photo of the SAME person to show {body_change}, moving from about "

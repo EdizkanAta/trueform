@@ -1,0 +1,43 @@
+{
+  "summary": "IDENTITY (face-embedding) GATE + CALIBRATION BACKGROUND-JOB REFACTOR verified end-to-end. 10/10 pytest cases pass in /app/backend/tests/test_identity_gate.py (96.57s). (1) POST /api/calibration now returns 200 in ~120ms with {job_id, status:'running'} — well under the 60s Cloudflare cap that used to 502 (iteration_4 HIGH issue). Polling GET /api/calibration/job/{job_id} reaches status='done' in ~90-100s and the done payload includes current_body_fat_pct (25.9), identity_all_pass=true, renders=[3] with drop_pct 5/10/15, and pairwise_distinctness with keys 5vs10/5vs15/10vs15. (2) IDENTITY GATE: each of the 3 calibration renders' qa carries identity_checked=true, identity_similarity as a real float in [-1,1], identity_pass=true, identity_mode='ok'. Direct Mongo inspection of the persisted doc: drop_pct 5 -> sim=0.8147, drop_pct 10 -> sim=0.7687, drop_pct 15 -> sim=0.6505 — all comfortably above IDENTITY_MIN=0.363; identity_mode='ok' on all three (no retry needed for this base, as expected per the review-request note). identity_all_pass=true at the job level. (3) ROUTE ORDERING NOT SHADOWED: GET /api/calibration/view?token=<jwt> returns 200 text/html (with <html> markup); with a garbage token returns 401. GET /api/calibration/job/{id} without any auth returns 401 (proving it is a distinct auth-guarded route and not being captured by /view). (4) MAIN RENDER JOB unchanged behavior: POST /api/generate returns a job_id and polling /api/generate/{job_id} reaches done; future_self_set.renders.{conservative,expected,stretch} each has path/weight_kg/body_fat_pct/what_it_takes and a qa object that ALSO carries identity_checked/identity_similarity/identity_pass. No 500/hang. (5) GET /api/files/{path}?token= returns real image bytes (PNG or JPEG magic) for all 3 calibration render paths; without a token returns 401/403. Benign cv2 warning 'Targets are not supported by the new graph engine' in logs — ignored per note. The iteration_4 HIGH bug (POST /api/calibration timing out at CF edge → 502) is FIXED by (a) the async-job pattern (immediate 200 with job_id) AND (b) parallel drops via asyncio.gather at server.py:439.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/generate render pipeline", "issue": "Carryover from iteration_4: img_bytes from the AI provider are sometimes JPEG (magic 0xFF D8 FF) but the object is always stored/served with content-type 'image/png' and a '.png' path suffix (server.py put_object call sites). Browsers still render fine; consider sniffing magic bytes to set the correct mime/extension. NOT a regression from this iteration."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_identity_gate.py — new pytest suite, 10 cases",
+    "/app/test_reports/pytest/pytest_identity_gate.xml — JUnit XML, 10 passed / 0 failed"
+  ],
+  "action_items": [
+    "None blocking. Identity gate and calibration async-job refactor are working as specified. Optional: address the carryover minor JPEG-vs-PNG mime mismatch at objstore.put_object call sites in server.py."
+  ],
+  "critical_code_review_comments": [
+    "server.py:407-419 — /api/calibration correctly implements the async-job pattern: inserts a job doc, spawns _run_calibration via asyncio.create_task, returns {job_id, status:'running'} immediately. Same shape as /api/generate.",
+    "server.py:429-439 — the three drops (5/10/15) are now run concurrently via asyncio.gather(*[one(d) for d in (5, 10, 15)]) — directly fixes the iteration_4 sequential-loop 502 bug.",
+    "server.py:454-457 — identity_all_pass is computed as all(r['qa'].get('identity_pass') for r in renders) and persisted on the calibration_jobs doc, exposed via /api/calibration/job/{id}.",
+    "server.py:464-469 — /api/calibration/job/{job_id} is auth-guarded (Depends(get_current_user)) and correctly filters by both id and user_id, preventing cross-user leakage.",
+    "server.py:472-495 — /api/calibration/view route is DECLARED AFTER /calibration/job/{job_id}, but FastAPI matches static path segments before parameter segments, and 'view' does not collide because /view has no {job_id} — verified live: /view?token=... returns 200 text/html and /job/anything returns 401.",
+    "ai_provider.py:140-196 — render_with_magnitude_gate does magnitude gate first, then identity gate. Identity retry uses build_render_prompt(stats, '', face_strength='low') per spec; keeps whichever (original or retry) has the higher sim. identity_pass fails-open on undetectable faces ((sim is None) or (sim >= IDENTITY_MIN)) — correct.",
+    "image_qa.py:51-58 — YuNet + SFace models loaded lazily and cached at module scope; correct.",
+    "image_qa.py:86-97 — face_similarity returns None on any failure (missing face, decode error), so identity_checked can be false without blocking the pipeline. Good default.",
+    "image_qa.IDENTITY_MIN=0.363 matches OpenCV's SFace recommendation for cosine same-identity threshold."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_identity_gate.py (new — 10-case pytest suite)",
+    "/app/test_reports/pytest/pytest_identity_gate.xml (new JUnit XML)"
+  ],
+  "success_rate": {"backend": "100% (10/10 pytest cases)", "frontend": "not tested (backend-only scope)"},
+  "seed_data_creation": "None. Reused the provided account e2e1788128321@trueform.app / Test1234! (has base_photo + completed onboarding, face detectable). Each test run upserts one calibration + one calibration_jobs doc + one future_self_set — no accumulation.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "As of iteration_5, both the magnitude gate (iteration_4) AND the identity face-embedding gate are green. Test suites to reuse: /app/backend/tests/test_magnitude_gate.py (15 cases) and /app/backend/tests/test_identity_gate.py (10 cases). Key facts to know: (1) POST /api/calibration is now non-blocking (job pattern, ~120ms) and the 3 drops run in parallel via asyncio.gather at server.py:439 — total done time ~90-100s. (2) For this base photo, identity_similarity lands in ~0.65-0.82 (SFace cosine), so identity_mode is always 'ok' — DO NOT assert identity_mode=='retry_low_face', only that the FIELDS exist and identity_pass is computed. (3) FastAPI route order in server.py places /calibration/job/{job_id} BEFORE /calibration/view; both work because /view is a static segment. (4) The JPEG-vs-PNG mime mismatch at objstore.put_object is still present but not blocking — tests accept both magic sequences.",
+  "rca_of_issue": "N/A — no regressions. The prior iteration_4 HIGH bug (POST /api/calibration exceeding 60s CF edge cap → 502) is resolved by (a) converting to a background-job pattern that returns a job_id immediately and (b) running the three drops concurrently with asyncio.gather. Verified live: POST returns in 120ms with 200 + {job_id, status:'running'}."
+}

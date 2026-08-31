@@ -64,6 +64,18 @@ clinical, data-forward "lab instrument" design. Provider-agnostic AI behind one 
 - [TODO] Item 5: MediaProvider real GIF/video thumbnails per exercise (wger, CC-BY-SA).
 - [TODO] Item 6: one-tap blur on all body photos, blurred by default except Progress comparison.
 
+## Corrective pass — CONSOLIDATED COMPLETE (2026-06, testing iteration_6: 13/13 BE + FE all green)
+- Item 1 theme: dark default + light toggle (persisted) + zero hardcoded hex/rgba (grep clean). DONE.
+- Item 2 exercise media/detail: form_cues + poster_image_url per exercise; tap row → detail sheet
+  (sets/reps/rest + cues + poster/placeholder); renderExercisePose stub (interface only). Media
+  source = wger.de (CC-BY-SA 4.0); real GIF/video pending a dedicated licensed provider. DONE (media asset is a poster fallback).
+- Item 3 personalized header: workout day header uses chosen future-self render. DONE.
+- Item 4 environment toggle: 3 settings, per-day binding, bodyweight swap (no barbell under home). DONE.
+- Item 5 render stats: weight + body-fat% + "what it takes" on Targets AND Progress. DONE.
+- Item 6 privacy: renders/photos blurred by default (Targets + Plan header) w/ one-tap reveal;
+  Progress comparison exempt. DONE.
+- Item 7 close-out: grep zero; MVP acceptance checklist reported to user.
+
 ## Backlog / remaining (P-levels)
 - P0 (Phase 2 gate): none blocking MVP.
 - P1: SSE streaming coach; text-model-authored render prompts; DOB native picker; auth rate limiting.

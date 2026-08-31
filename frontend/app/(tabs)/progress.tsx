@@ -86,6 +86,17 @@ export default function ProgressScreen() {
         />
         <Text style={{ color: colors.textTertiary, fontSize: font.size.xs, marginTop: 6 }}>Drag the divider to compare.</Text>
 
+        {data.chosen_render ? (
+          <Card testID="progress-render-stats" style={{ marginTop: spacing.md }}>
+            <Label>Your chosen target</Label>
+            <View style={{ flexDirection: "row", gap: spacing.lg, marginTop: spacing.sm }}>
+              <StatReadout value={kgToDisplay(data.chosen_render.weight_kg, unit).value} unit={kgToDisplay(1, unit).unit} label="target weight" size={font.size.xl} />
+              <StatReadout value={data.chosen_render.body_fat_pct} unit="%" label="est. body fat" size={font.size.xl} />
+            </View>
+            <Text style={{ color: colors.textSecondary, fontSize: font.size.sm, marginTop: spacing.sm }}>{data.chosen_render.what_it_takes}</Text>
+          </Card>
+        ) : null}
+
         <GradientButton testID="progress-add-photo" label="Add progress photo" icon="camera" loading={uploading} onPress={addPhoto} />
 
         {/* Weight log */}

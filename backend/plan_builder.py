@@ -61,6 +61,7 @@ def _exercise_view(ex: Dict, has_hypertension: bool) -> Dict:
         "equipment": ex["equipment"], "sets": ex["sets"], "reps": ex["reps"],
         "rest_sec": ex["rest_sec"], "media": ex.get("media"),
         "media_provider": ex.get("media_provider"), "safety_note": note,
+        "form_cues": ex.get("form_cues", []), "poster_image_url": ex.get("poster_image_url"),
     }
 
 
